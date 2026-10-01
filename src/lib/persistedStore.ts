@@ -73,7 +73,10 @@ export function createPersistedStore<T>(
 
 /* ------------------------------------------------------------ layout prefs */
 
-export type OutputTab = "code" | "preview";
+export type OutputTab = "code" | "preview" | "diff";
+export const OUTPUT_TABS: ReadonlyArray<OutputTab> = ["code", "preview", "diff"];
+/** What Cmd/Ctrl+Enter does. */
+export type PrimaryAction = "copy" | "overleaf";
 export type Focus = "none" | "input" | "output";
 
 export interface UiPrefs {
@@ -88,6 +91,9 @@ export interface UiPrefs {
   tab: OutputTab;
   /** One pane maximised, or both visible. */
   focus: Focus;
+  primaryAction: PrimaryAction;
+  /** Scroll the output along with the editor. */
+  syncScroll: boolean;
 }
 
 export const SPLIT_MIN = 0.2;
@@ -105,6 +111,8 @@ export const DEFAULT_UI: UiPrefs = {
   wrapOutput: false,
   tab: "code",
   focus: "none",
+  primaryAction: "copy",
+  syncScroll: true,
 };
 
 const clamp = (v: unknown, lo: number, hi: number, fallback: number) =>
@@ -118,8 +126,10 @@ export const uiStore = createPersistedStore<UiPrefs>("cleanmath:ui:v1", DEFAULT_
     fontSize: clamp(r.fontSize, FONT_MIN, FONT_MAX, DEFAULT_UI.fontSize),
     wrapInput: r.wrapInput === true,
     wrapOutput: r.wrapOutput === true,
-    tab: r.tab === "preview" ? "preview" : "code",
+    tab: r.tab && OUTPUT_TABS.includes(r.tab) ? r.tab : "code",
     focus: r.focus === "input" || r.focus === "output" ? r.focus : "none",
+    primaryAction: r.primaryAction === "overleaf" ? "overleaf" : "copy",
+    syncScroll: r.syncScroll !== false,
   };
 });
 

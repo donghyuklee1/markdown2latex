@@ -25,7 +25,7 @@ function Wordmark() {
         width={1094}
         height={436}
         priority
-        className="logo-light h-7 w-auto sm:h-8"
+        className="logo-light h-8 w-auto sm:h-10"
       />
       <Image
         src="/logo-dark.png"
@@ -33,7 +33,7 @@ function Wordmark() {
         width={1094}
         height={436}
         priority
-        className="logo-dark h-7 w-auto sm:h-8"
+        className="logo-dark h-8 w-auto sm:h-10"
       />
     </Link>
   );

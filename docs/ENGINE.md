@@ -119,6 +119,25 @@ is written as LaTeX. This pass recognises four cases:
   compound operators (`<=`, `:=`, `->`) stay glued. `&=` keeps its anchor
   attached. This one only changes how the LaTeX reads, not how it renders.
 
+### Academic settings
+
+Three normalisations a paper author wants and a chat user rarely does, behind
+the sliders button rather than on the bar:
+
+- **Vector notation** (`vectorStyle`, default `keep`). `\vec{v}`, `\mathbf v`,
+  `\boldsymbol{v}` and `\bm{v}` all converge on the chosen command. The argument
+  is taken with balanced braces, or as one token when unbraced; `\text{}` groups
+  are masked first.
+- **Operator names** (`operatorNames`, default on). The `sin` -> `\sin` rule,
+  now independent of Smart spacing.
+- **Equation numbering** (`starEnvironments`, default on). Off keeps `align`
+  numbered and makes Academic mode emit `equation` / `align`; a star the author
+  wrote is always kept.
+
+`wrapEnvironments` is not in the UI: it is what the "Copy for Obsidian / Notion"
+export uses. Markdown renderers only see maths between dollars, so there a
+display environment is kept *inside* `$$` - the opposite of what LaTeX wants.
+
 ## 4. Re-emission
 
 `detectEnvWrapper` first checks whether a display block is *exactly* one
@@ -174,6 +193,15 @@ and must not be weakened:
    fixed point.
 2. **Every output parses.** All bundled examples, in all three delimiter modes,
    are rendered through KaTeX with `throwOnError: true`.
+
+## Diagnostics
+
+`cleanMathDetailed` also returns `mathBlocks`: for every block, the input lines
+it came from and exactly what it was emitted as. `lib/diagnostics.ts` parses each
+one with KaTeX (the preview's options) and maps a failure back to an input line -
+KaTeX's error position counts rows inside the block, and cleaning keeps a display
+block's rows on their own lines. The editor paints those lines and lists them in
+the Syntax health banner, next to the tokenizer's unclosed-delimiter issues.
 
 ## The preview path
 

@@ -9,8 +9,16 @@ depth.
 
 CleanMath turns messy LLM-generated math into LaTeX that compiles on the first
 try. Next.js 16 App Router, React 19, single static page, Tailwind, KaTeX. There is no
-backend and there must never be one: no route handlers, no server actions, no
-`fetch`. Privacy is a product feature, not an implementation detail.
+backend and there must never be one: no route handlers, no server actions, and
+no request that carries user text. Privacy is a product feature, not an
+implementation detail. There are exactly two exits, both deliberate:
+
+- **Open in Overleaf** (`components/exporters.ts`) POSTs the document to
+  Overleaf's `/docs` endpoint - only on an explicit click, and its tooltip says so.
+- **PNG export** `fetch`es KaTeX's font files - this site's own static assets,
+  carrying no user data - to inline them into the image.
+
+Anything else that would send data off the page does not belong.
 
 > **Next.js 16 is newer than most training data.** APIs, conventions and file
 > layout differ from Next 13/14 - `next lint` is gone, `useSyncExternalStore` is
@@ -44,6 +52,10 @@ npm run examples   # regenerate examples/ (commit the diff)
 | `src/lib/shortcuts.ts` | The shortcut table. Drives both the key handler and the `?` dialog. |
 | `src/lib/share.ts` | URL-fragment share links. Standard web APIs only, so it runs under node tests. |
 | `src/lib/site.ts` | Site name, URL (`NEXT_PUBLIC_SITE_URL`) and links. |
+| `src/lib/diagnostics.ts` | KaTeX-parses each cleaned block; maps failures to input lines. |
+| `src/lib/diff.ts` | Myers line diff with word-level detail, for the Diff tab. |
+| `src/lib/latexDocument.ts` | Cleaned output -> full .tex document (markdown prose to LaTeX). |
+| `src/components/exporters.ts` | Clipboard, downloads, PNG rendering, the Overleaf form post. |
 | `src/lib/katexOptions.ts` | The one KaTeX config. Shared with the tests on purpose. |
 | `src/components/Katex.tsx` | Local KaTeX bindings. Replaced the unmaintained `react-katex`. |
 | `src/components/*` | All client components. DOM APIs belong here. |
@@ -78,13 +90,15 @@ browser API in the engine, the design is wrong.
    delimiter to literal text and records an `Issue`. A malformed input must still
    produce output and a rendering preview - the user is usually mid-keystroke.
 
-5. **`dangerouslySetInnerHTML` has exactly three justified call sites.**
+5. **HTML sinks have exactly four justified call sites.**
    `MathOutput` writes highlighted code through `highlightLine`, which escapes
    before it wraps; `Katex` writes `katex.renderToString` output, which cannot
    emit raw HTML because `trust` is off; `layout.tsx` inlines `THEME_BOOTSTRAP`,
    a constant string that only ever writes validated hex through
-   `style.setProperty`. Any fourth call site needs the same kind of argument, in
-   a comment, or it does not belong.
+   `style.setProperty`; `exporters.ts` sets `innerHTML` on an off-screen node
+   from the same trusted `renderToString` output, to draw the PNG export. Any
+   fifth call site needs the same kind of argument, in a comment, or it does not
+   belong.
 
 6. **Do not restore state in an effect.** Preferences come from
    `src/lib/optionsStore.ts` via `useSyncExternalStore`, which keeps the first

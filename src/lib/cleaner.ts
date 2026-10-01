@@ -21,6 +21,9 @@
 
 export type DelimiterMode = "standard" | "academic" | "inline";
 
+/** How bold/arrow vector markup is normalized. `keep` leaves each as written. */
+export type VectorStyle = "keep" | "mathbf" | "vec" | "boldsymbol";
+
 export interface ConfigOptions {
   /** How display/inline math should be re-emitted. */
   delimiterMode: DelimiterMode;
@@ -30,10 +33,22 @@ export interface ConfigOptions {
   fixLineBreaks: boolean;
   /**
    * Recognise spacing LaTeX would otherwise get wrong: `\,` before integral
-   * differentials, upright `\sin`/`\log`, word gaps around `\text{}`, and
-   * tidy single spaces around binary operators.
+   * differentials, word gaps around `\text{}`, and tidy single spaces around
+   * binary operators.
    */
   smartSpacing: boolean;
+  /** Bare `sin`, `log`, `max`, ... become upright `\sin`, `\log`, `\max`. */
+  operatorNames: boolean;
+  /** Star numbered environments (`align` -> `align*`) so they never renumber a paper. */
+  starEnvironments: boolean;
+  /** Rewrite `\vec`, `\mathbf`, `\boldsymbol` and `\bm` vectors to one style. */
+  vectorStyle: VectorStyle;
+  /**
+   * Keep (or add) `$$` around display environments. Markdown renderers -
+   * Obsidian, Notion, GitHub - only see maths between dollars, while LaTeX
+   * proper rejects that nesting. Used by the "Copy for Obsidian / Notion" export.
+   */
+  wrapEnvironments: boolean;
 }
 
 export const DEFAULT_OPTIONS: ConfigOptions = {
@@ -41,7 +56,18 @@ export const DEFAULT_OPTIONS: ConfigOptions = {
   autoText: true,
   fixLineBreaks: true,
   smartSpacing: true,
+  operatorNames: true,
+  starEnvironments: true,
+  vectorStyle: "keep",
+  wrapEnvironments: false,
 };
+
+export const VECTOR_STYLES: ReadonlyArray<{ id: VectorStyle; label: string; example: string }> = [
+  { id: "keep", label: "Keep", example: "as written" },
+  { id: "mathbf", label: "Bold", example: "\\mathbf{x}" },
+  { id: "vec", label: "Arrow", example: "\\vec{x}" },
+  { id: "boldsymbol", label: "Bold italic", example: "\\boldsymbol{x}" },
+];
 
 export const DELIMITER_MODES: ReadonlyArray<{
   id: DelimiterMode;
@@ -870,6 +896,62 @@ function tidyOperators(line: string): string {
   return out.map((t) => t.text).join("");
 }
 
+/** `sin(x)` -> `\sin(x)`: operator names typeset upright, with operator spacing. */
+export function upgradeOperatorNames(mathSrc: string): string {
+  const store: string[] = [];
+  return unmaskLatex(maskLatex(mathSrc, store).replace(BARE_FUNCTION, "\\$1"), store);
+}
+
+/* ------------------------------------------------------------ vector notation */
+
+const VECTOR_CMD = /\\(vec|mathbf|boldsymbol|bm)(?![A-Za-z])\s*/g;
+
+/**
+ * Rewrite every vector-ish command to the chosen one: `\vec{v}`, `\mathbf v`
+ * and `\bm{v}` all become e.g. `\boldsymbol{v}`. The argument is taken with
+ * balanced braces, or as one token when unbraced. Text groups are untouched.
+ */
+export function normalizeVectors(mathSrc: string, style: VectorStyle): string {
+  if (style === "keep") return mathSrc;
+  const store: string[] = [];
+  const src = mathSrc.replace(TEXT_GROUP, (m) => {
+    store.push(m);
+    return MASK + (store.length - 1) + MASK;
+  });
+  let out = "";
+  let last = 0;
+  let m: RegExpExecArray | null;
+  VECTOR_CMD.lastIndex = 0;
+  while ((m = VECTOR_CMD.exec(src))) {
+    const argStart = m.index + m[0].length;
+    let arg: string | null = null;
+    let stop = argStart;
+    if (src[argStart] === "{") {
+      let depth = 0;
+      for (let k = argStart; k < src.length; k++) {
+        if (src[k] === "\\") { k++; continue; }
+        if (src[k] === "{") depth++;
+        else if (src[k] === "}" && --depth === 0) {
+          arg = src.slice(argStart + 1, k);
+          stop = k + 1;
+          break;
+        }
+      }
+    } else {
+      const tok = /^(?:\\[A-Za-z]+|[A-Za-z0-9])/.exec(src.slice(argStart));
+      if (tok) {
+        arg = tok[0];
+        stop = argStart + tok[0].length;
+      }
+    }
+    if (arg === null) continue; // malformed: leave it for KaTeX to report
+    out += src.slice(last, m.index) + "\\" + style + "{" + arg + "}";
+    last = stop;
+    VECTOR_CMD.lastIndex = stop;
+  }
+  return unmaskLatex(out + src.slice(last), store);
+}
+
 /**
  * Automatic spacing: recognise where the author's intent and LaTeX's own
  * spacing rules disagree, and write the spacing LaTeX needs.
@@ -877,7 +959,6 @@ function tidyOperators(line: string): string {
 export function smartSpacing(mathSrc: string): string {
   const store: string[] = [];
   let out = maskLatex(mathSrc, store);
-  out = out.replace(BARE_FUNCTION, "\\$1");
   if (INTEGRAL.test(mathSrc)) out = spaceDifferentials(out, store);
   out = unmaskLatex(out, store);
   out = spaceTextGroups(out);
@@ -998,7 +1079,9 @@ function hasTopLevelRows(src: string): boolean {
 function cleanBlockContent(raw: string, options: ConfigOptions): string {
   let out = repairEscapes(unicodeMathToLatex(raw));
   out = out.replace(/[ \t]+$/gm, "");
+  out = normalizeVectors(out, options.vectorStyle);
   if (options.autoText) out = autoEscapeText(out);
+  if (options.operatorNames) out = upgradeOperatorNames(out);
   if (options.smartSpacing) out = smartSpacing(out);
   return out.trim();
 }
@@ -1009,8 +1092,9 @@ function collapse(src: string): string {
 
 function renderEnv(env: EnvWrapper, options: ConfigOptions): string {
   // Numbered environments get starred: a snippet pasted mid-document should not
-  // silently renumber the author's own equations.
-  const name = NUMBERED_ENVS.has(env.name) ? env.name + "*" : env.name;
+  // silently renumber the author's own equations. With the option off, an
+  // environment keeps whatever star it came with.
+  const name = (options.starEnvironments && NUMBERED_ENVS.has(env.name)) || env.starred ? env.name + "*" : env.name;
   const body = options.fixLineBreaks && ROW_ENVS.has(env.name)
     ? repairRows(env.body, AMP_ENVS.has(env.name))
     : env.body.replace(/^\n+|\n+$/g, "");
@@ -1023,7 +1107,10 @@ function renderDisplay(content: string, options: ConfigOptions): string {
   // compile error in LLM output - drop it and emit the environment bare. Only for
   // environments that are display math themselves: a bare `pmatrix` is the
   // opposite error.
-  if (env && STANDALONE_ENVS.has(env.name)) return renderEnv(env, options);
+  if (env && STANDALONE_ENVS.has(env.name)) {
+    const bare = renderEnv(env, options);
+    return options.wrapEnvironments && options.delimiterMode !== "inline" ? "$$\n" + bare + "\n$$" : bare;
+  }
 
   const body = env
     ? renderEnv(env, options)
@@ -1034,10 +1121,12 @@ function renderDisplay(content: string, options: ConfigOptions): string {
   if (options.delimiterMode === "academic") {
     // `equation` holds exactly one row; multi-row content needs `align*`.
     // Row breaks inside a nested matrix do not count.
+    const star = options.starEnvironments ? "*" : "";
     if (!env && hasTopLevelRows(body)) {
-      return "\\begin{align*}\n" + (options.fixLineBreaks ? repairRows(body, true) : body) + "\n\\end{align*}";
+      const rows = options.fixLineBreaks ? repairRows(body, true) : body;
+      return "\\begin{align" + star + "}\n" + rows + "\n\\end{align" + star + "}";
     }
-    return "\\begin{equation*}\n" + body + "\n\\end{equation*}";
+    return "\\begin{equation" + star + "}\n" + body + "\n\\end{equation" + star + "}";
   }
 
   return "$$\n" + body + "\n$$";
@@ -1049,11 +1138,25 @@ function renderInline(content: string): string {
 
 /* ------------------------------------------------------------------ the API */
 
+/** Where one math block came from and what it became - for diagnostics. */
+export interface MathBlock {
+  kind: "inline" | "display";
+  /** 1-indexed input line of the opening delimiter. */
+  line: number;
+  /** 1-indexed input line where the block's payload starts. */
+  bodyLine: number;
+  /** Last input line of the block, closing delimiter included. */
+  endLine: number;
+  /** Exactly what was written to the output for this block. */
+  emitted: string;
+}
+
 export interface CleanResult {
   output: string;
   issues: Issue[];
   /** How many math blocks were normalized. */
   blocks: number;
+  mathBlocks: MathBlock[];
 }
 
 export function cleanMathDetailed(input: string, options: ConfigOptions = DEFAULT_OPTIONS): CleanResult {
@@ -1062,23 +1165,34 @@ export function cleanMathDetailed(input: string, options: ConfigOptions = DEFAUL
 
   let out = "";
   let blocks = 0;
+  const mathBlocks: MathBlock[] = [];
+  const newlines = (s: string) => (s.match(/\n/g) ?? []).length;
 
-  for (const token of tokens) {
+  tokens.forEach((token, idx) => {
     if (token.kind === "text") {
       out += token.value;
-      continue;
+      return;
     }
     blocks++;
     const content = cleanBlockContent(token.value, options);
-    out += token.kind === "display" ? renderDisplay(content, options) : renderInline(content);
-  }
+    const emitted = token.kind === "display" ? renderDisplay(content, options) : renderInline(content);
+    out += emitted;
+    const end = idx + 1 < tokens.length ? tokens[idx + 1].start : normalized.length;
+    mathBlocks.push({
+      kind: token.kind,
+      line: token.line,
+      bodyLine: token.line + newlines(/^\s*/.exec(token.value)?.[0] ?? ""),
+      endLine: token.line + newlines(normalized.slice(token.start, end).trimEnd()),
+      emitted,
+    });
+  });
 
   out = out
     .replace(/[ \t]+$/gm, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
-  return { output: out, issues, blocks };
+  return { output: out, issues, blocks, mathBlocks };
 }
 
 /** Spec signature: messy text in, compilation-ready LaTeX out. */

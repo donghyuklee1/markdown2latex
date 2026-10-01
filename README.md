@@ -147,16 +147,38 @@ Every rule is conservative by design: each one has a test where it must fire
   without touching the editor.
 - **Themes** - light and dark, plus a palette editor with an eyedropper.
 
+### Pro tools
+
+- **Open in Overleaf** - one click turns the result into a new Overleaf project:
+  cleaned in Academic mode, markdown prose converted to LaTeX (`# Heading` ->
+  `\section*`, lists, bold, code), wrapped in a preamble with `amsmath`,
+  `amssymb`, `mathtools` and `bm`. Documents with Korean, CJK, Greek or Cyrillic
+  prose are sent with XeLaTeX (plus `kotex` for Hangul).
+- **Syntax health** - every cleaned block is parsed by KaTeX as you type. A
+  block that would not render paints its input line red and shows up as
+  `Line 4 | KaTeX Error - Unexpected end of input` in a banner under the editor.
+- **Diff view** - a third output tab showing exactly what the pipeline changed:
+  green for what it added or corrected, red for what it stripped, word by word,
+  with unchanged stretches folded away.
+- **Academic settings** - vector notation (`\mathbf` / `\vec` / `\boldsymbol`),
+  upright operator names, equation numbering, and what `Cmd/Ctrl+Enter` does.
+- **Export formats** - from the arrow beside Copy: maths only, Obsidian / Notion
+  flavour (environments kept inside `$$`), the preview as a PNG image (copied or
+  downloaded), the snippet, or a complete `.tex` document.
+- **Scroll sync** - the output follows the editor as you scroll.
+
 ## Keyboard shortcuts
 
 | Shortcut | Action | | Shortcut | Action |
 | --- | --- | --- | --- | --- |
-| `⌘/Ctrl` `Enter` | Copy clean LaTeX | | `Alt` `P` | Code / live preview |
+| `⌘/Ctrl` `Enter` | Copy (or Overleaf, per settings) | | `Alt` `P` | Cycle code / preview / diff |
+| `⌘/Ctrl` `Shift` `C` | Copy maths only | | `Alt` `O` | Open in Overleaf |
 | `⌘/Ctrl` `S` | Download as a file | | `Alt` `[` / `]` | Maximise input / output |
 | `Alt` `L` | Copy a share link | | `Alt` `W` | Word wrap |
 | `Alt` `V` | Clean the clipboard | | `Alt` `=` / `-` / `0` | Text size |
 | `Alt` `1` / `2` / `3` | Standard / Academic / Inline | | `Alt` `T` | Light / dark |
 | `Tab` / `Shift` `Tab` | Indent / outdent in the editor | | `?` | All shortcuts |
+| `Esc` | Close a menu, leave the editor | | | |
 
 `Alt` is `⌥ Option` on a Mac.
 
@@ -221,17 +243,22 @@ src/
 │   └── manifest.ts, robots.ts, sitemap.ts, opengraph-image.tsx
 ├── components/
 │   ├── Workspace.tsx         State, layout, shortcuts, clipboard, share, download
-│   ├── ControlBar.tsx        Delimiter mode, cleanup toggles, text size
+│   ├── ControlBar.tsx        Delimiter mode, cleanup toggles, Academic settings
 │   ├── MathInput.tsx         Editor: gutter, error lines, drop, indent, examples
-│   ├── MathOutput.tsx        Clean-code and live-preview tabs
+│   ├── MathOutput.tsx        Code, live-preview and diff tabs
+│   ├── ActionBar.tsx         Copy split-button, export menu, Open in Overleaf
+│   ├── exporters.ts          Clipboard, downloads, PNG, the Overleaf hand-off
 │   ├── Splitter.tsx          Pointer + keyboard resize handle
 │   ├── ShortcutsDialog.tsx   The `?` panel
 │   ├── Header.tsx, ThemeToggle.tsx, PalettePicker.tsx, MathColorPicker.tsx
-│   └── CopyButton.tsx, Toast.tsx, Katex.tsx, ui.tsx
+│   └── Toast.tsx, Katex.tsx, ui.tsx
 └── lib/
     ├── cleaner.ts            The engine: tokenizer, rules, re-emission
     ├── shortcuts.ts          One table for key handling and the help panel
     ├── share.ts              URL-fragment share links (deflate + base64url)
+    ├── diagnostics.ts        KaTeX parse check per block, mapped to input lines
+    ├── diff.ts               Myers line + word diff for the Diff tab
+    ├── latexDocument.ts      Output -> complete .tex document for Overleaf
     ├── persistedStore.ts     Draft and layout, as external stores
     ├── optionsStore.ts, theme.ts, site.ts
     └── highlight.ts, katexOptions.ts, defaultText.ts
@@ -243,17 +270,22 @@ src/
 
 ```bash
 npm run verify     # lint + typecheck + tests + production build - run before pushing
-npm test           # 58 checks: engine rules, KaTeX rendering, share links, shortcuts
+npm test           # 74 checks: engine rules, KaTeX rendering, diagnostics, diff,
+                   # document export, share links, shortcuts
 npm run examples   # regenerate examples/ (CI fails if it is stale)
 npm run logos      # rebuild the logo PNGs from static/logo-source.png
 ```
 
 ## Privacy
 
-There is no backend: no route handlers, no server actions, no analytics, no
-`fetch`. Your text is parsed in your tab and stored only in your browser's
-`localStorage`. Share links carry the text in the URL fragment, which is never
-sent in a request.
+There is no backend: no route handlers, no server actions, no analytics. Your
+text is parsed in your tab and stored only in your browser's `localStorage`.
+Share links carry the text in the URL fragment, which is never sent in a request.
+
+Two things are deliberate exceptions, and only happen when you click them:
+**Open in Overleaf** sends the document to Overleaf (that is the point of it), and
+**PNG export** loads this site's own KaTeX font files to draw the image - no text
+goes with that request.
 
 ## Roadmap
 

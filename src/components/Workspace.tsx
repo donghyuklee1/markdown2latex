@@ -1,14 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import ActionBar, { type ExportId } from "./ActionBar";
 import ControlBar from "./ControlBar";
-import CopyButton from "./CopyButton";
+import { copyPng, downloadBlob, downloadText, mathOnly, openInOverleaf, renderPreviewPng, writeClipboard } from "./exporters";
 import MathInput from "./MathInput";
 import MathOutput from "./MathOutput";
 import Splitter from "./Splitter";
 import { setShortcutsOpen } from "./ShortcutsDialog";
 import { useToast } from "./Toast";
-import { cleanMathDetailed, DELIMITER_MODES, type ConfigOptions } from "@/lib/cleaner";
+import { cleanMath, cleanMathDetailed, DELIMITER_MODES, type ConfigOptions } from "@/lib/cleaner";
+import { diagnose } from "@/lib/diagnostics";
+import { toLatexDocument } from "@/lib/latexDocument";
 import { DEFAULT_TEXT, EXAMPLES } from "@/lib/defaultText";
 import {
   getOptionsServerSnapshot,
@@ -23,6 +26,7 @@ import {
   FONT_MIN,
   INPUT_HEIGHT_MAX,
   INPUT_HEIGHT_MIN,
+  OUTPUT_TABS,
   SPLIT_MAX,
   SPLIT_MIN,
   uiStore,
@@ -32,40 +36,6 @@ import {
 import { decodeShare, encodeShare, SHARE_MAX_CHARS, SHARE_PREFIX } from "@/lib/share";
 import { matchShortcut, type ShortcutId } from "@/lib/shortcuts";
 import { getThemeSnapshot, setTheme } from "@/lib/theme";
-
-/** Clipboard write with a fallback for browsers that refuse the async API. */
-async function writeClipboard(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    const ta = document.createElement("textarea");
-    ta.value = text;
-    ta.setAttribute("readonly", "");
-    ta.style.position = "fixed";
-    ta.style.top = "-1000px";
-    ta.style.opacity = "0";
-    document.body.appendChild(ta);
-    ta.select();
-    try {
-      return document.execCommand("copy");
-    } catch {
-      return false;
-    } finally {
-      ta.remove();
-    }
-  }
-}
-
-function downloadText(text: string, filename: string): void {
-  const url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  // Give the browser a tick to start the download before the URL is revoked.
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
 
 const isTyping = (el: Element | null) =>
   !!el && (el.tagName === "TEXTAREA" || el.tagName === "INPUT" || (el as HTMLElement).isContentEditable);
@@ -87,8 +57,22 @@ export default function Workspace() {
 
   // The whole engine is synchronous and fast enough to run on every keystroke,
   // so there is no debounce to make the preview lag behind the caret.
-  const { output, issues, blocks } = useMemo(() => cleanMathDetailed(input, options), [input, options]);
+  const { output, issues, blocks, mathBlocks } = useMemo(() => cleanMathDetailed(input, options), [input, options]);
   const downloadName = options.delimiterMode === "academic" ? "clean-math.tex" : "clean-math.md";
+
+  // KaTeX-checking every block is the slowest step, so it runs on a deferred
+  // copy: typing stays instant and the health report catches up a frame later.
+  const deferredBlocks = useDeferredValue(mathBlocks);
+  const diagnostics = useMemo(() => diagnose(deferredBlocks), [deferredBlocks]);
+
+  const [overleafBusy, setOverleafBusy] = useState(false);
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+
+  /** A complete document: cleaned in Academic mode, prose turned into LaTeX. */
+  const buildDocument = useCallback(
+    () => toLatexDocument(cleanMath(input, { ...options, delimiterMode: "academic", wrapEnvironments: false })),
+    [input, options],
+  );
 
   /** Replace the whole input, keeping the old text one click away. */
   const replaceInput = useCallback(
@@ -129,6 +113,85 @@ export default function Workspace() {
     downloadText(output + "\n", downloadName);
     toast("Saved " + downloadName);
   }, [output, downloadName, toast]);
+
+  const copyText = useCallback(
+    async (text: string, done: string) => {
+      if (!text) return toast("Nothing to copy yet", "info");
+      toast((await writeClipboard(text)) ? done : "Copy failed - select the text and press Cmd/Ctrl+C", "success");
+    },
+    [toast],
+  );
+
+  const openOverleaf = useCallback(() => {
+    if (!output) return toast("Nothing to open yet", "info");
+    setOverleafBusy(true);
+    try {
+      openInOverleaf(buildDocument(), "Clean math");
+      toast("Opening in Overleaf - it continues in a new tab", "info");
+    } catch {
+      toast("Could not reach Overleaf from this browser", "error");
+    }
+    // The new tab takes a moment to appear; keep the spinner until it has.
+    window.setTimeout(() => setOverleafBusy(false), 1400);
+  }, [output, buildDocument, toast]);
+
+  const exportAs = useCallback(
+    async (id: ExportId) => {
+      switch (id) {
+        case "copy":
+          return copy();
+        case "copyMath":
+          return copyText(mathOnly(output), "Maths copied, without the prose");
+        case "copyObsidian":
+          return copyText(
+            cleanMath(input, { ...options, delimiterMode: "standard", wrapEnvironments: true }),
+            "Copied for Obsidian / Notion",
+          );
+        case "downloadSnippet":
+          return download();
+        case "downloadDocument": {
+          if (!output) return toast("Nothing to download yet", "info");
+          const doc = buildDocument();
+          downloadText(doc.source, "clean-math-document.tex");
+          return toast("Saved clean-math-document.tex" + (doc.engine === "xelatex" ? " - compile with XeLaTeX" : ""));
+        }
+        case "copyPng":
+        case "downloadPng": {
+          if (!output) return toast("Nothing to render yet", "info");
+          const png = renderPreviewPng(output, ui.fontSize);
+          try {
+            if (id === "copyPng") {
+              await copyPng(png);
+              toast("Preview copied as an image");
+            } else {
+              downloadBlob(await png, "clean-math.png");
+              toast("Saved clean-math.png");
+            }
+          } catch {
+            toast("This browser could not render the image - try Chrome or Edge", "error");
+          }
+          return;
+        }
+      }
+    },
+    [copy, copyText, output, input, options, download, buildDocument, toast, ui.fontSize],
+  );
+
+  /** Cmd/Ctrl+Enter: whichever action the user chose in Academic settings. */
+  const primary = useCallback(
+    () => (ui.primaryAction === "overleaf" ? openOverleaf() : void copy()),
+    [ui.primaryAction, openOverleaf, copy],
+  );
+
+  /** Keep the output's scroll position in step with the editor's. */
+  const followScroll = useCallback(
+    (ratio: number) => {
+      const el = scrollerRef.current;
+      if (!ui.syncScroll || !el) return;
+      el.scrollTop = ratio * (el.scrollHeight - el.clientHeight);
+    },
+    [ui.syncScroll],
+  );
 
   const share = useCallback(async () => {
     if (!input.trim()) {
@@ -227,7 +290,9 @@ export default function Workspace() {
         modeInline: "inline",
       };
       switch (id) {
-        case "copy": return void copy();
+        case "copy": return primary();
+        case "copyMath": return void exportAs("copyMath");
+        case "overleaf": return openOverleaf();
         case "download": return download();
         case "share": return void share();
         case "cleanClipboard": return void cleanClipboard();
@@ -238,7 +303,7 @@ export default function Workspace() {
           setOptions({ ...options, delimiterMode: mode });
           return toast(DELIMITER_MODES.find((m) => m.id === mode)!.label + " delimiters", "info");
         }
-        case "togglePreview": return setUi({ tab: ui.tab === "code" ? "preview" : "code" });
+        case "togglePreview": return setUi({ tab: OUTPUT_TABS[(OUTPUT_TABS.indexOf(ui.tab) + 1) % OUTPUT_TABS.length] });
         case "toggleTheme": return setTheme(getThemeSnapshot() === "dark" ? "light" : "dark");
         case "toggleWrap": {
           const next = !ui.wrapInput;
@@ -252,7 +317,7 @@ export default function Workspace() {
         case "help": return setShortcutsOpen((v) => !v);
       }
     },
-    [copy, download, share, cleanClipboard, options, toast, setUi, ui, setFont, toggleFocus],
+    [primary, exportAs, openOverleaf, download, share, cleanClipboard, options, toast, setUi, ui, setFont, toggleFocus],
   );
 
   useEffect(() => {
@@ -278,9 +343,11 @@ export default function Workspace() {
         options={options}
         onChange={setOptions}
         blocks={blocks}
-        issues={issues}
+        problems={issues.length + diagnostics.length}
         fontSize={ui.fontSize}
         onFontSize={setFont}
+        primaryAction={ui.primaryAction}
+        onPrimaryAction={(primaryAction) => setUi({ primaryAction })}
       />
 
       {/* Wide screens: two columns sized by the draggable split. Narrow screens:
@@ -308,6 +375,8 @@ export default function Workspace() {
               value={input}
               onChange={setInput}
               issues={issues}
+              diagnostics={diagnostics}
+              onScrollRatio={followScroll}
               fontSize={ui.fontSize}
               wrap={ui.wrapInput}
               onToggleWrap={() => setUi({ wrapInput: !ui.wrapInput })}
@@ -354,6 +423,10 @@ export default function Workspace() {
           <div className="flex min-h-[420px] min-w-0 flex-col gap-2.5 lg:min-h-0 lg:[flex:var(--out)_1_0px]">
             <MathOutput
               output={output}
+              input={input}
+              syncScroll={ui.syncScroll}
+              onToggleSync={() => setUi({ syncScroll: !ui.syncScroll })}
+              scrollerRef={scrollerRef}
               tab={ui.tab}
               onTab={(tab) => setUi({ tab })}
               fontSize={ui.fontSize}
@@ -366,7 +439,16 @@ export default function Workspace() {
               onShare={() => void share()}
             />
             <div className="shrink-0">
-              <CopyButton onCopy={copy} copied={copied} disabled={!output} charCount={output.length} />
+              <ActionBar
+                disabled={!output}
+                copied={copied}
+                charCount={output.length}
+                snippetName={downloadName}
+                primaryAction={ui.primaryAction}
+                overleafBusy={overleafBusy}
+                onExport={(id) => void exportAs(id)}
+                onOverleaf={openOverleaf}
+              />
             </div>
           </div>
         )}

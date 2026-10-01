@@ -10,6 +10,8 @@
 
 export type ShortcutId =
   | "copy"
+  | "copyMath"
+  | "overleaf"
   | "download"
   | "cleanClipboard"
   | "share"
@@ -34,6 +36,8 @@ export interface Shortcut {
   group: "Output" | "Editing" | "View";
   mod?: boolean;
   alt?: boolean;
+  /** Required state of Shift for Mod/Alt shortcuts (default: not held). */
+  shift?: boolean;
   /** Matched against event.code. */
   code?: string;
   /** Matched against event.key, for keys whose code varies by layout. */
@@ -41,14 +45,16 @@ export interface Shortcut {
 }
 
 export const SHORTCUTS: ReadonlyArray<Shortcut> = [
-  { id: "copy", keys: "Mod+Enter", label: "Copy clean LaTeX", group: "Output", mod: true, key: "Enter" },
+  { id: "copy", keys: "Mod+Enter", label: "Primary action: copy, or open in Overleaf (see settings)", group: "Output", mod: true, key: "Enter" },
+  { id: "copyMath", keys: "Mod+Shift+C", label: "Copy just the maths, as a plain snippet", group: "Output", mod: true, shift: true, code: "KeyC" },
+  { id: "overleaf", keys: "Alt+O", label: "Open in Overleaf", group: "Output", alt: true, code: "KeyO" },
   { id: "download", keys: "Mod+S", label: "Download as a file", group: "Output", mod: true, code: "KeyS" },
   { id: "share", keys: "Alt+L", label: "Copy a share link", group: "Output", alt: true, code: "KeyL" },
   { id: "cleanClipboard", keys: "Alt+V", label: "Clean the clipboard: paste, clean, copy", group: "Editing", alt: true, code: "KeyV" },
   { id: "modeStandard", keys: "Alt+1", label: "Standard delimiters", group: "Editing", alt: true, code: "Digit1" },
   { id: "modeAcademic", keys: "Alt+2", label: "Academic delimiters", group: "Editing", alt: true, code: "Digit2" },
   { id: "modeInline", keys: "Alt+3", label: "Inline-only delimiters", group: "Editing", alt: true, code: "Digit3" },
-  { id: "togglePreview", keys: "Alt+P", label: "Switch code / live preview", group: "View", alt: true, code: "KeyP" },
+  { id: "togglePreview", keys: "Alt+P", label: "Cycle code / preview / diff", group: "View", alt: true, code: "KeyP" },
   { id: "focusInput", keys: "Alt+[", label: "Maximise the input pane", group: "View", alt: true, code: "BracketLeft" },
   { id: "focusOutput", keys: "Alt+]", label: "Maximise the output pane", group: "View", alt: true, code: "BracketRight" },
   { id: "toggleWrap", keys: "Alt+W", label: "Toggle word wrap", group: "View", alt: true, code: "KeyW" },
@@ -63,7 +69,7 @@ export const SHORTCUTS: ReadonlyArray<Shortcut> = [
 export const EDITOR_KEYS: ReadonlyArray<{ keys: string; label: string }> = [
   { keys: "Tab", label: "Indent (two spaces)" },
   { keys: "Shift+Tab", label: "Outdent" },
-  { keys: "Esc", label: "Leave the editor, so Tab moves focus again" },
+  { keys: "Esc", label: "Leave the editor, or close any open menu" },
 ];
 
 interface KeyLike {
@@ -83,6 +89,7 @@ export function matchShortcut(e: KeyLike, typing: boolean): ShortcutId | null {
   const mod = e.metaKey || e.ctrlKey;
   for (const s of SHORTCUTS) {
     if (!!s.mod !== mod || !!s.alt !== e.altKey) continue;
+    if ((s.mod || s.alt) && !!s.shift !== e.shiftKey) continue;
     if (s.code ? s.code !== e.code : s.key !== e.key) continue;
     if (!s.mod && !s.alt && typing) continue;
     return s.id;

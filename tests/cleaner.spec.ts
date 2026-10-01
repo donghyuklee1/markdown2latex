@@ -283,9 +283,57 @@ check(
 
 check(
   "smart spacing off leaves spacing as written",
-  cleanMath("$\\int sin x dx, a+b$", opts({ smartSpacing: false })),
+  cleanMath("$\\int sin x dx, a+b$", opts({ smartSpacing: false, operatorNames: false })),
   "$\\int sin x dx, a+b$",
 );
+
+/* --- academic settings ---------------------------------------------------- */
+
+check(
+  "operator names are their own switch",
+  cleanMath("$sin x + a+b$", opts({ smartSpacing: false })) + " | " + cleanMath("$sin x$", opts({ operatorNames: false })),
+  "$\\sin x + a+b$ | $sin x$",
+);
+
+check(
+  "vector notation: every style converges on the chosen one",
+  cleanMath("$\\vec{v} + \\mathbf u + \\bm{w_{1}} + \\boldsymbol\\alpha$", opts({ vectorStyle: "boldsymbol" })),
+  "$\\boldsymbol{v} + \\boldsymbol{u} + \\boldsymbol{w_{1}} + \\boldsymbol{\\alpha}$",
+);
+
+check(
+  "vector notation: keep leaves each as written, \\text{} is never touched",
+  cleanMath("$\\vec{v} + \\mathbf{u}$", opts()) + " | " + cleanMath("$\\text{\\vec x} + \\vec{y}$", opts({ vectorStyle: "mathbf" })),
+  "$\\vec{v} + \\mathbf{u}$ | $\\text{\\vec x} + \\mathbf{y}$",
+);
+
+check(
+  "unnumbering off keeps align numbered, in both bare and academic output",
+  cleanMath("\\begin{align}\nx &= 1\n\\end{align}", opts({ starEnvironments: false })) + " | " +
+    cleanMath("$$ x = 1 $$", opts({ starEnvironments: false, delimiterMode: "academic" })).replace(/\n/g, " "),
+  "\\begin{align}\nx &= 1\n\\end{align} | \\begin{equation} x = 1 \\end{equation}",
+);
+
+check(
+  "unnumbering off still respects a star the author wrote",
+  cleanMath("\\begin{align*}\nx &= 1\n\\end{align*}", opts({ starEnvironments: false })),
+  "\\begin{align*}\nx &= 1\n\\end{align*}",
+);
+
+check(
+  "Obsidian export keeps $$ around environments, and stays idempotent",
+  cleanMath(cleanMath("$$\n\\begin{align}\nx = 1\n\\end{align}\n$$", opts({ wrapEnvironments: true })), opts({ wrapEnvironments: true })),
+  "$$\n\\begin{align*}\nx &= 1\n\\end{align*}\n$$",
+);
+
+{
+  const r = cleanMathDetailed("intro\n$$\nx = 1\n$$\nand $y$ here", opts());
+  check(
+    "math blocks report where they came from",
+    r.mathBlocks.map((b) => b.kind + "@" + b.line + "/" + b.bodyLine + "-" + b.endLine).join(", "),
+    "display@2/3-4, inline@5/5-5",
+  );
+}
 
 /* --- safety net ---------------------------------------------------------- */
 
@@ -389,6 +437,61 @@ check(
   previewFailures.length ? previewFailures.join("\n") : "none",
   "none",
 );
+
+/* --- KaTeX diagnostics, diff, document export ------------------------------ */
+
+import { diagnose } from "../src/lib/diagnostics";
+import { diffLines, diffSequence } from "../src/lib/diff";
+import { toLatexDocument } from "../src/lib/latexDocument";
+
+{
+  const r = cleanMathDetailed("ok $x$\n$$\na = 1 \\\\\nb = \\frac{1}{\n$$\nand $\\undefinedmacro$", opts());
+  check(
+    "KaTeX errors map back to the failing input line",
+    diagnose(r.mathBlocks).map((d) => d.line + ": " + d.message.slice(0, 22)).join(" | "),
+    "4: Unexpected end of inpu | 6: Undefined control sequ",
+  );
+  check("every bundled example is diagnostically clean", String(EXAMPLES.flatMap((e) => diagnose(cleanMathDetailed(e.text, opts()).mathBlocks)).length), "0");
+}
+
+check(
+  "myers diff finds the minimal edit",
+  diffSequence([..."ABCABBA"], [..."CBABAC"]).map((r) => r.kind[0] + r.items.join("")).join(" "),
+  "d" + "AB" + " e" + "C" + " i" + "B" + " e" + "AB" + " d" + "B" + " e" + "A" + " i" + "C",
+);
+
+{
+  const d = diffLines("\\[\nx=1\n\\]\nsame", "$$\nx = 1\n$$\nsame");
+  check(
+    "line diff pairs edits and marks the changed words",
+    d.map((l) => l.kind[0] + ":" + l.pieces.map((p) => (p.changed ? "[" + p.text + "]" : p.text)).join("")).join(" "),
+    "d:[\\[] d:x=1 d:[\\]] i:[$$] i:x[ ]=[ ]1 i:[$$] e:same",
+  );
+  check("identical text has no changes", diffLines("a\nb", "a\nb").every((l) => l.kind === "equal") ? "none" : "changed", "none");
+}
+
+{
+  const doc = toLatexDocument(cleanMath("# Results\n\nThe **loss** is 50% of `x_1`:\n$$ L = 1 $$\n- first item\n- costs \\$5 & $y$", opts({ delimiterMode: "academic" })));
+  check("document: engine and wrapper", doc.engine + " " + doc.source.startsWith("\\documentclass") + " " + doc.source.trimEnd().endsWith("\\end{document}"), "pdflatex true true");
+  check(
+    "document: markdown prose becomes LaTeX, maths untouched",
+    doc.source.slice(doc.source.indexOf("\\begin{document}") + 16, doc.source.indexOf("\\end{document}")).trim(),
+    [
+      "\\section*{Results}",
+      "",
+      "The \\textbf{loss} is 50\\% of \\texttt{x\\_1}:",
+      "\\begin{equation*}",
+      "L = 1",
+      "\\end{equation*}",
+      "\\begin{itemize}",
+      "  \\item first item",
+      "  \\item costs \\$5 \\& $y$",
+      "\\end{itemize}",
+    ].join("\n"),
+  );
+  check("document: Hangul switches to XeLaTeX with kotex", (() => { const d = toLatexDocument("\uD55C\uAE00 $x$"); return d.engine + " " + d.source.includes("kotex"); })(), "xelatex true");
+  check("document: a full document passes through", toLatexDocument("\\documentclass{article}\nX").source, "\\documentclass{article}\nX");
+}
 
 /* --- share links and shortcuts -------------------------------------------- */
 

@@ -219,3 +219,31 @@ html[data-resizing="y"] * {
   cursor: row-resize !important;
   user-select: none !important;
 }
+
+/* Anyone who asked the OS for less motion gets none: every animation and
+ * transition above collapses to an instant change. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+/* Height that animates to its content: a grid row eased between 0fr and 1fr.
+ * Used for the syntax-health banner, so the editor above it glides rather
+ * than jumping when an error appears or clears. */
+.expand {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 220ms ease;
+}
+.expand[data-open="true"] {
+  grid-template-rows: 1fr;
+}
+.expand > * {
+  min-height: 0;
+  overflow: hidden;
+}

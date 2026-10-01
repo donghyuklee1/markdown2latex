@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useSyncExternalStore } from "react";
-import { Keyboard, X } from "lucide-react";
+import { X } from "lucide-react";
 import { EDITOR_KEYS, SHORTCUTS, type Shortcut } from "@/lib/shortcuts";
 import { IconButton, Kbd, useKeyLabel } from "./ui";
 
@@ -24,13 +24,15 @@ export function setShortcutsOpen(next: boolean | ((prev: boolean) => boolean)): 
 
 export function ShortcutsButton() {
   return (
-    <IconButton
-      icon={Keyboard}
-      label="Keyboard shortcuts"
+    <button
+      type="button"
+      aria-label="Keyboard shortcuts"
       title="Keyboard shortcuts (?)"
       onClick={() => setShortcutsOpen(true)}
-      className="h-8 w-8 rounded-lg border border-border bg-surface text-muted hover:border-border-strong"
-    />
+      className="press flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-surface font-mono text-sm font-bold text-muted hover:border-border-strong hover:text-text"
+    >
+      ?
+    </button>
   );
 }
 

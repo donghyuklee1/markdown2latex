@@ -1,16 +1,20 @@
 "use client";
 
-import { AlertTriangle, Blocks, CheckCircle2, Languages, Minus, Plus, Space, WrapText } from "lucide-react";
-import { DELIMITER_MODES, type ConfigOptions, type DelimiterMode, type Issue } from "@/lib/cleaner";
-import { DEFAULT_UI, FONT_MAX, FONT_MIN } from "@/lib/persistedStore";
+import { useEffect, useRef, useState } from "react";
+import { AlertTriangle, Blocks, CheckCircle2, Languages, Minus, Plus, SlidersHorizontal, Space, WrapText } from "lucide-react";
+import { DELIMITER_MODES, VECTOR_STYLES, type ConfigOptions, type DelimiterMode, type VectorStyle } from "@/lib/cleaner";
+import { DEFAULT_UI, FONT_MAX, FONT_MIN, type PrimaryAction } from "@/lib/persistedStore";
 
 interface Props {
   options: ConfigOptions;
   onChange: (next: ConfigOptions) => void;
   blocks: number;
-  issues: Issue[];
+  /** Tokenizer issues plus KaTeX diagnostics. */
+  problems: number;
   fontSize: number;
   onFontSize: (next: number) => void;
+  primaryAction: PrimaryAction;
+  onPrimaryAction: (next: PrimaryAction) => void;
 }
 
 function Toggle({
@@ -35,10 +39,8 @@ function Toggle({
       title={hint}
       onClick={() => onChange(!checked)}
       className={
-        "press flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs font-medium " +
-        (checked
-          ? "border-accent/40 bg-accent/10 text-accent hover:bg-accent/15"
-          : "border-border bg-surface text-muted hover:border-border-strong hover:text-text")
+        "press press-soft flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs font-medium " +
+        (checked ? "bg-accent/10 text-accent hover:bg-accent/15" : "text-muted hover:bg-surface-2 hover:text-text")
       }
     >
       <Icon size={13} strokeWidth={2.5} />
@@ -122,11 +124,169 @@ function FontSize({ value, onChange }: { value: number; onChange: (n: number) =>
   );
 }
 
+/** Segmented choice used inside the settings popover. */
+function Choice<T extends string>({
+  value,
+  options,
+  onChange,
+  label,
+}: {
+  value: T;
+  options: ReadonlyArray<{ id: T; label: string; title?: string }>;
+  onChange: (v: T) => void;
+  label: string;
+}) {
+  return (
+    <div role="radiogroup" aria-label={label} className="grid auto-cols-fr grid-flow-col rounded-lg border border-border bg-bg p-0.5">
+      {options.map((o) => (
+        <button
+          key={o.id}
+          type="button"
+          role="radio"
+          aria-checked={o.id === value}
+          title={o.title}
+          onClick={() => onChange(o.id)}
+          className={
+            "press press-soft rounded-md px-2 py-1.5 text-[11px] font-semibold " +
+            (o.id === value ? "bg-surface-2 text-text shadow-sm" : "text-faint hover:text-muted")
+          }
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function SettingRow({ title, hint, children }: { title: string; hint: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <div>
+        <div className="text-xs font-semibold text-text">{title}</div>
+        <div className="text-[11px] leading-snug text-faint">{hint}</div>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Academic settings: the normalisations a paper author cares about but a chat
+ * user rarely does, so they live one click away instead of on the bar.
+ */
+function AcademicSettings({
+  options,
+  set,
+  primaryAction,
+  onPrimaryAction,
+}: {
+  options: ConfigOptions;
+  set: (patch: Partial<ConfigOptions>) => void;
+  primaryAction: PrimaryAction;
+  onPrimaryAction: (next: PrimaryAction) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const changed =
+    options.vectorStyle !== "keep" || !options.operatorNames || !options.starEnvironments || primaryAction !== "copy";
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        title="Academic settings: vector notation, operator names, numbering"
+        className={
+          "press relative flex h-[34px] items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium " +
+          (open
+            ? "border-accent/40 bg-accent/10 text-accent"
+            : "border-border bg-surface text-muted hover:border-border-strong hover:text-text")
+        }
+      >
+        <SlidersHorizontal size={14} strokeWidth={2.25} />
+        <span className="hidden lg:inline">Academic</span>
+        {changed && <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-accent ring-2 ring-surface" />}
+      </button>
+
+      {open && (
+        <div
+          role="dialog"
+          aria-label="Academic settings"
+          className="absolute left-0 z-40 mt-2 w-[min(20rem,calc(100vw-2rem))] animate-pop-in space-y-4 rounded-xl border border-border bg-surface p-4 shadow-xl shadow-black/10"
+        >
+          <SettingRow title="Vector notation" hint="Rewrite \vec, \mathbf, \boldsymbol and \bm to one style.">
+            <Choice<VectorStyle>
+              label="Vector notation"
+              value={options.vectorStyle}
+              onChange={(v) => set({ vectorStyle: v })}
+              options={VECTOR_STYLES.map((v) => ({ id: v.id, label: v.label, title: v.example }))}
+            />
+          </SettingRow>
+
+          <SettingRow title="Operator names" hint="sin(x), max, log n become upright \sin(x), \max, \log n.">
+            <Choice<"on" | "off">
+              label="Operator names"
+              value={options.operatorNames ? "on" : "off"}
+              onChange={(v) => set({ operatorNames: v === "on" })}
+              options={[{ id: "on", label: "Upgrade" }, { id: "off", label: "Leave as typed" }]}
+            />
+          </SettingRow>
+
+          <SettingRow title="Equation numbering" hint="Starred environments never renumber the equations in your paper.">
+            <Choice<"on" | "off">
+              label="Equation numbering"
+              value={options.starEnvironments ? "on" : "off"}
+              onChange={(v) => set({ starEnvironments: v === "on" })}
+              options={[{ id: "on", label: "align → align*" }, { id: "off", label: "Keep numbered" }]}
+            />
+          </SettingRow>
+
+          <SettingRow title="Primary action" hint="What Cmd/Ctrl + Enter does.">
+            <Choice<PrimaryAction>
+              label="Primary action"
+              value={primaryAction}
+              onChange={onPrimaryAction}
+              options={[{ id: "copy", label: "Copy LaTeX" }, { id: "overleaf", label: "Open in Overleaf" }]}
+            />
+          </SettingRow>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /**
  * Floating preference strip. Sits directly above the output so the effect of a
  * toggle is visible in the same glance that flipped it.
  */
-export default function ControlBar({ options, onChange, blocks, issues, fontSize, onFontSize }: Props) {
+export default function ControlBar({
+  options,
+  onChange,
+  blocks,
+  problems,
+  fontSize,
+  onFontSize,
+  primaryAction,
+  onPrimaryAction,
+}: Props) {
   const set = (patch: Partial<ConfigOptions>) => onChange({ ...options, ...patch });
 
   return (
@@ -135,6 +295,8 @@ export default function ControlBar({ options, onChange, blocks, issues, fontSize
 
       <div className="hidden h-6 w-px bg-border sm:block" />
 
+      {/* The three cleanup switches read as one control: a single pill group. */}
+      <div role="group" aria-label="Cleanup rules" className="flex flex-wrap items-center gap-0.5 rounded-lg border border-border bg-bg p-0.5">
       <Toggle
         label="Auto \text{}"
         hint="Wrap prose found inside math blocks in \text{...} so it typesets as words, not variables."
@@ -156,6 +318,9 @@ export default function ControlBar({ options, onChange, blocks, issues, fontSize
         onChange={(v) => set({ smartSpacing: v })}
         icon={Space}
       />
+      </div>
+
+      <AcademicSettings options={options} set={set} primaryAction={primaryAction} onPrimaryAction={onPrimaryAction} />
 
       <div className="ml-auto flex items-center gap-3 pr-1 text-xs">
         <FontSize value={fontSize} onChange={onFontSize} />
@@ -164,11 +329,11 @@ export default function ControlBar({ options, onChange, blocks, issues, fontSize
           <span className="font-mono">{blocks}</span>
           <span className="hidden md:inline">{blocks === 1 ? "block" : "blocks"}</span>
         </span>
-        {issues.length > 0 ? (
+        {problems > 0 ? (
           <span className="flex items-center gap-1.5 font-medium text-danger">
             <AlertTriangle size={13} />
-            <span className="font-mono">{issues.length}</span>
-            <span className="hidden md:inline">{issues.length === 1 ? "issue" : "issues"}</span>
+            <span className="font-mono">{problems}</span>
+            <span className="hidden md:inline">{problems === 1 ? "issue" : "issues"}</span>
           </span>
         ) : (
           <span className="flex items-center gap-1.5 font-medium text-accent">

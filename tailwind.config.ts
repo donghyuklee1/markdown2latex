@@ -45,6 +45,10 @@ const config: Config = {
           from: { opacity: "0", transform: "translateY(-8px) scale(0.98)" },
           to: { opacity: "1", transform: "translateY(0) scale(1)" },
         },
+        "fade-in": {
+          from: { opacity: "0", transform: "translateY(3px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
         "pop-in": {
           from: { opacity: "0", transform: "translateY(-4px) scale(0.98)" },
           to: { opacity: "1", transform: "translateY(0) scale(1)" },
@@ -53,6 +57,7 @@ const config: Config = {
       animation: {
         "toast-in": "toast-in 140ms ease-out",
         "pop-in": "pop-in 120ms ease-out",
+        "fade-in": "fade-in 160ms ease-out",
       },
     },
   },

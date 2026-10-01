@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
+  HeartPulse,
   ChevronUp,
   ClipboardPaste,
   Eraser,
@@ -14,6 +15,7 @@ import {
   WrapText,
 } from "lucide-react";
 import type { Issue } from "@/lib/cleaner";
+import type { Diagnostic } from "@/lib/diagnostics";
 import { EXAMPLES } from "@/lib/defaultText";
 import { useToast } from "./Toast";
 import { IconButton } from "./ui";
@@ -28,6 +30,10 @@ interface Props {
   value: string;
   onChange: (next: string) => void;
   issues: Issue[];
+  /** KaTeX failures, mapped to input lines. */
+  diagnostics: Diagnostic[];
+  /** Scroll position as 0..1, for syncing the output pane. */
+  onScrollRatio: (ratio: number) => void;
   fontSize: number;
   wrap: boolean;
   onToggleWrap: () => void;
@@ -162,6 +168,8 @@ export default function MathInput({
   value,
   onChange,
   issues,
+  diagnostics,
+  onScrollRatio,
   fontSize,
   wrap,
   onToggleWrap,
@@ -181,12 +189,22 @@ export default function MathInput({
   const lineHeight = Math.round(fontSize * 1.85);
   const lines = useMemo(() => value.split("\n"), [value]);
 
+  /** Everything wrong, delimiter problems first, in line order. */
+  const problems = useMemo(
+    () =>
+      [
+        ...issues.map((i) => ({ line: i.line, kind: "Delimiter", message: i.message })),
+        ...diagnostics.map((d) => ({ line: d.line, kind: "KaTeX Error", message: d.message })),
+      ].sort((a, b) => a.line - b.line),
+    [issues, diagnostics],
+  );
+
   /** line number -> first message reported on it */
   const errorLines = useMemo(() => {
     const map = new Map<number, string>();
-    for (const issue of issues) if (!map.has(issue.line)) map.set(issue.line, issue.message);
+    for (const p of problems) if (!map.has(p.line)) map.set(p.line, p.kind + ": " + p.message);
     return map;
-  }, [issues]);
+  }, [problems]);
 
   const paste = useCallback(async () => {
     try {
@@ -326,7 +344,12 @@ export default function MathInput({
             spellCheck={false}
             wrap={wrap ? "soft" : "off"}
             onChange={(e) => onChange(e.target.value)}
-            onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
+            onScroll={(e) => {
+              const ta = e.currentTarget;
+              setScrollTop(ta.scrollTop);
+              const room = ta.scrollHeight - ta.clientHeight;
+              onScrollRatio(room > 0 ? ta.scrollTop / room : 0);
+            }}
             onKeyDown={(e) => {
               if (e.key === "Escape") {
                 e.currentTarget.blur();
@@ -377,25 +400,41 @@ export default function MathInput({
         )}
       </div>
 
-      {issues.length > 0 && (
-        <div className="scroll-slim max-h-28 shrink-0 overflow-y-auto border-t border-danger/25 bg-danger/[0.07] px-3 py-2">
-          {issues.map((issue, idx) => (
-            <button
-              key={idx}
-              type="button"
-              onClick={() => jumpToLine(issue.line)}
-              className="flex w-full items-start gap-2 rounded px-1 py-0.5 text-left text-xs text-danger transition-colors hover:bg-danger/10"
-            >
-              <AlertTriangle size={13} className="mt-0.5 shrink-0 text-danger" />
-              <span>
-                <span className="font-mono font-semibold text-danger">Line {issue.line}</span>
-                <span className="mx-1.5 text-danger/50">|</span>
-                {issue.message}
+      {/* Syntax health: delimiter problems and KaTeX errors together. The
+          wrapper eases its height open and shut, so nothing jumps. */}
+      <div className="expand shrink-0" data-open={problems.length > 0} aria-live="polite">
+        <div>
+          <div className="border-t border-danger/25 bg-danger/[0.07]">
+            <div className="flex items-center gap-1.5 px-3 pt-2 text-[11px] font-semibold uppercase tracking-wider text-danger">
+              <HeartPulse size={13} />
+              Syntax health
+              <span className="font-mono normal-case tracking-normal text-danger/70">
+                {problems.length} {problems.length === 1 ? "problem" : "problems"}
               </span>
-            </button>
-          ))}
+            </div>
+            <div className="scroll-slim max-h-28 overflow-y-auto px-2 pb-2 pt-1">
+              {problems.map((p, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => jumpToLine(p.line)}
+                  title="Jump to the line"
+                  className="press press-soft flex w-full items-start gap-2 rounded px-1 py-0.5 text-left text-xs text-danger hover:bg-danger/10"
+                >
+                  <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+                  <span className="min-w-0">
+                    <span className="font-mono font-semibold">Line {p.line}</span>
+                    <span className="mx-1.5 text-danger/50">|</span>
+                    <span className="font-semibold">{p.kind}</span>
+                    <span className="mx-1.5 text-danger/50">-</span>
+                    {p.message}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
-      )}
+      </div>
     </section>
   );
 }
