@@ -22,6 +22,7 @@ import { useToast } from "./Toast";
 import { cleanMath, cleanMathDetailed, DELIMITER_MODES, type ConfigOptions } from "@/lib/cleaner";
 import { diagnose } from "@/lib/diagnostics";
 import { repairLatex, type RepairResult } from "@/lib/repair";
+import { planInsertion } from "@/lib/insertion";
 import { isDocument, katexMacros } from "@/lib/texDocument";
 import { MacroContext } from "./Katex";
 import RepairDialog from "./RepairDialog";
@@ -339,23 +340,22 @@ export default function Workspace() {
   );
 
   /**
-   * Insert at the editor's cursor. `@` in the template marks where the current
-   * selection goes. execCommand keeps the edit on the browser's own undo stack.
+   * Insert at the editor's cursor so the result renders: in prose a symbol is
+   * wrapped as `$...$` and a snippet as its own `$$` block; inside maths it goes
+   * in bare (lib/insertion.ts). `@` marks where the selection goes. execCommand
+   * keeps the edit on the browser's own undo stack.
    */
   const insertAtCursor = useCallback(
-    (template: string) => {
+    (template: string, kind: "inline" | "display" = "inline") => {
       if (ui.focus === "output") setUi({ focus: "none" });
       const ta = editorRef.current;
       if (!ta) return;
       const { selectionStart: start, selectionEnd: end, value } = ta;
-      const selected = value.slice(start, end);
-      const at = template.indexOf("@");
-      const text = at < 0 ? template : template.slice(0, at) + selected + template.slice(at + 1);
+      const plan = planInsertion(value, start, end, template, kind);
       ta.focus({ preventScroll: true });
       ta.setSelectionRange(start, end);
-      if (!document.execCommand("insertText", false, text)) setInput(value.slice(0, start) + text + value.slice(end));
-      const caret = at < 0 ? start + text.length : start + at + selected.length;
-      ta.setSelectionRange(caret, caret);
+      if (!document.execCommand("insertText", false, plan.text)) setInput(value.slice(0, start) + plan.text + value.slice(end));
+      ta.setSelectionRange(plan.caret, plan.caret);
     },
     [ui.focus, setUi, setInput],
   );
@@ -465,8 +465,8 @@ export default function Workspace() {
     setBenchOpen(true);
   };
   const leftItems: RailItem[] = [
-    { id: "symbols", label: "Symbol palette", icon: Shapes, panel: <SymbolPalette onInsert={insertAtCursor} /> },
-    { id: "snippets", label: "Snippets", icon: BookMarked, panel: <SnippetsPanel getSelection={getSelection} output={output} onInsert={insertAtCursor} /> },
+    { id: "symbols", label: "Symbol palette", icon: Shapes, panel: <SymbolPalette onInsert={(tex) => insertAtCursor(tex, "inline")} /> },
+    { id: "snippets", label: "Snippets", icon: BookMarked, panel: <SnippetsPanel getSelection={getSelection} output={output} onInsert={(latex) => insertAtCursor(latex, "display")} /> },
     {
       id: "history",
       label: "History",

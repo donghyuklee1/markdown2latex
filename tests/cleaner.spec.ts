@@ -445,7 +445,7 @@ import { diffLines, diffSequence } from "../src/lib/diff";
 import { toLatexDocument } from "../src/lib/latexDocument";
 
 {
-  const r = cleanMathDetailed("ok $x$\n$$\na = 1 \\\\\nb = \\frac{1}{\n$$\nand $\\undefinedmacro$", opts());
+  const r = cleanMathDetailed("ok $x$\n$$\na = 1 \\\\\nb = \\frac{1}{\n$$\nand $\\undefinedmacro$", opts({ repairStructure: false }));
   check(
     "KaTeX errors map back to the failing input line",
     diagnose(r.mathBlocks).map((d) => d.line + ": " + d.message.slice(0, 22)).join(" | "),

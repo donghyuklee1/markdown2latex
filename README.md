@@ -125,6 +125,16 @@ answer, so you can see what it does before typing anything.
 <tr><td>Bare <code>sin x</code>, <code>log n</code>, <code>max</code></td><td>Upright <code>\sin x</code>, <code>\log n</code>, <code>\max</code></td></tr>
 <tr><td><code>x \text{if} y</code>, rendering as "xify"</td><td><code>x \text{ if } y</code></td></tr>
 <tr><td><code>a+  b=c</code></td><td><code>a + b = c</code> - unary minus, scripts and labels untouched</td></tr>
+<tr><td rowspan="5"><b>Structure</b><br/><sub>Auto-repair toggle</sub></td>
+  <td><code>\frac{a+b}{c</code>, <code>\left( x</code> with no partner</td><td>Missing <code>}</code> added, stray <code>}</code> dropped, <code>\right.</code> / <code>\left.</code> completed per alignment row</td></tr>
+<tr><td><code>\begin{array}{cc}</code> rows with three cells, extra <code>&amp;</code> in <code>cases</code></td><td>Column spec widened; the extra cell folded into the second column</td></tr>
+<tr><td>A bare <code>%</code> or <code>model_version</code> inside maths</td><td><code>\%</code>, and <code>\text{model\_version}</code> (in a .tex document <code>%</code> stays a comment)</td></tr>
+<tr><td><code>\begin{equation}\begin{align}</code>, <code>\end{aligne}</code></td><td>Illegal nesting unwrapped; misspelled environments corrected (your own <code>\newtheorem</code>s are never touched)</td></tr>
+<tr><td><code>\bm{x}</code>, <code>\vspace</code>, <code>\noindent</code> inside maths</td><td><code>\boldsymbol{x}</code>; page-layout commands removed (<code>\hspace</code> kept - it is real spacing)</td></tr>
+<tr><td><b>Fragments</b></td>
+  <td><code>$\hat{y}$ = \arg\max_y P(y) $\prod_i$ P(x_i)</code></td><td>Merged into one span; never across words, citations or non-ASCII prose</td></tr>
+<tr><td><b>Documents</b></td>
+  <td>A whole <code>.tex</code> file with <code>\newcommand</code>s</td><td>Preamble kept byte for byte, its macros understood everywhere, the body previewed as a document</td></tr>
 </table>
 
 Every rule is conservative by design: each one has a test where it must fire
@@ -149,9 +159,13 @@ Every rule is conservative by design: each one has a test where it must fire
 - **Document tabs** - several drafts at once, each autosaved. Double-click a tab
   to rename it; that name is also the **file name** every save uses (downloads,
   the PNG, the Overleaf project).
-- **Rails** - on wide screens the side margins hold a symbol palette (click to
-  insert, wraps the selection), saved snippets, automatic history snapshots, and
-  an equation outline with error badges.
+- **Rails** - on wide screens the side margins hold a symbol palette, a snippet
+  library with **249 starters in 18 categories** (calculus to quantum, ML to
+  complex analysis - all searchable), automatic history snapshots, and an
+  equation outline with error badges.
+- **Smart insertion** - a symbol or snippet inserted into prose is wrapped so it
+  renders (`$\alpha$` inline, a snippet as its own `$$` block); inside maths it
+  goes in bare. Select text first to wrap it (`x` -> `\hat{x}`).
 - **Check & Fix** (`Alt+F`) - finds everything that stops the input rendering
   and proposes repairs you review first: unclosed delimiters and environments,
   missing or stray braces, unpaired `\left`/`\right`, command typos
@@ -298,6 +312,9 @@ src/
 │   ├── ActionBar.tsx         Copy split-button, export menu, Open in Overleaf
 │   ├── exporters.ts          Clipboard, downloads, PNG, the Overleaf hand-off
 │   ├── Splitter.tsx          Pointer + keyboard resize handle
+│   ├── ResearchLab.tsx       The Tools view; lab/ holds its kit, registry and panels
+│   ├── rails/                Doc tabs, side rails, palette, snippets, history, outline
+│   ├── studio/               Workbench drawer, formula flow/graph, sandbox, units, sketch
 │   ├── ShortcutsDialog.tsx   The `?` panel
 │   ├── Header.tsx, ThemeToggle.tsx, PalettePicker.tsx, MathColorPicker.tsx
 │   └── Toast.tsx, Katex.tsx, ui.tsx
@@ -308,6 +325,13 @@ src/
     ├── diagnostics.ts        KaTeX parse check per block, mapped to input lines
     ├── diff.ts               Myers line + word diff for the Diff tab
     ├── latexDocument.ts      Output -> complete .tex document for Overleaf
+    ├── structure.ts          Auto-repair: brackets, grids, characters, environments
+    ├── repair.ts             Check & Fix: KaTeX-verified repairs for review
+    ├── texDocument.ts        Whole .tex documents: preamble, macros, prose preview
+    ├── insertion.ts          Snippet/symbol insertion that renders
+    ├── starters.ts           The 249 starter snippets
+    ├── documents.ts          Tabs, history, snippets, file names
+    ├── lab/ studio/          Pure logic for every Tool and Studio feature
     ├── persistedStore.ts     Draft and layout, as external stores
     ├── optionsStore.ts, theme.ts, site.ts
     └── highlight.ts, katexOptions.ts, defaultText.ts
@@ -319,8 +343,9 @@ src/
 
 ```bash
 npm run verify     # lint + typecheck + tests + production build - run before pushing
-npm test           # 74 checks: engine rules, KaTeX rendering, diagnostics, diff,
-                   # document export, share links, shortcuts
+npm test           # 661 checks in 22 spec files: engine rules (each with a
+                   # must-not-fire test), KaTeX rendering of every example and
+                   # starter, every Tool and Studio feature, idempotence
 npm run examples   # regenerate examples/ (CI fails if it is stale)
 npm run logos      # rebuild the logo PNGs from static/logo-source.png
 ```

@@ -138,6 +138,37 @@ the sliders button rather than on the bar:
 export uses. Markdown renderers only see maths between dollars, so there a
 display environment is kept *inside* `$$` - the opposite of what LaTeX wants.
 
+### Fragmented inline maths
+
+Before tokenizing, `mergeFragmentedMath` joins inline spans that an LLM split
+apart - `$\hat{y}$ = \arg\max_y P(y) $\prod_i$ ...` - when everything between,
+before or after them on the same line reads as formula: operators, maths-only
+commands, scripts, one-letter symbols. A real word, a text command (`\cite`,
+`\ref`), non-ASCII prose, a comma list or a line break blocks the merge, and an
+absorbed edge must carry an operand, never just `=`.
+
+### Structural auto-repair (toggle)
+
+`lib/structure.ts`, run first on every payload (and, for environment typos, on
+the whole input before tokenizing):
+
+- **Brackets** - missing `}` appended and stray `}` dropped; an unpaired
+  `\left` / `\right` completed with `\right.` / `\left.` *per alignment row*,
+  because LaTeX requires the pair within one row.
+- **Grids** - an `array` whose rows have more cells than its spec declares gets
+  the spec widened; a third `&` in a `cases` row is folded into the second cell.
+- **Characters** - bare `%` becomes `\%` (not in .tex documents, where it is a
+  comment); snake_case identifiers become `\text{model\_version}`.
+- **Environments** - `equation` wrapped around `align`/`gather`/... is unwrapped
+  (`equation` around `aligned`/`split` is valid and kept); misspelled names are
+  corrected by edit distance, refusing ties, with an `\end` typo following the
+  `\begin` it closes. Environments declared with `\newtheorem` are never renamed.
+- **KaTeX compatibility** - `\bm` -> `\boldsymbol`; page-layout commands
+  (`\vspace`, `\noindent`, `\clearpage`, ...) removed. `\hspace` is kept.
+
+Every rule is a fixed point and has a must-not-fire test in
+`tests/structure.spec.ts`.
+
 ## 4. Re-emission
 
 `detectEnvWrapper` first checks whether a display block is *exactly* one

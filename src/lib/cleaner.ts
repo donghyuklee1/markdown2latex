@@ -18,6 +18,7 @@
  */
 
 import { documentParts } from "./texDocument";
+import { fixEnvTypos, repairStructure } from "./structure";
 
 /* ------------------------------------------------------------------ options */
 
@@ -51,6 +52,12 @@ export interface ConfigOptions {
    * proper rejects that nesting. Used by the "Copy for Obsidian / Notion" export.
    */
   wrapEnvironments: boolean;
+  /**
+   * Automatic structural repair (lib/structure.ts): balance braces and
+   * \left/\right, widen array specs, escape `%`, \text{} snake_case names,
+   * unwrap illegal nesting, fix environment typos, map \bm, strip layout.
+   */
+  repairStructure: boolean;
 }
 
 export const DEFAULT_OPTIONS: ConfigOptions = {
@@ -62,6 +69,7 @@ export const DEFAULT_OPTIONS: ConfigOptions = {
   starEnvironments: true,
   vectorStyle: "keep",
   wrapEnvironments: false,
+  repairStructure: true,
 };
 
 export const VECTOR_STYLES: ReadonlyArray<{ id: VectorStyle; label: string; example: string }> = [
@@ -1078,8 +1086,9 @@ function hasTopLevelRows(src: string): boolean {
   return /\\\\/.test(flat + src.slice(last));
 }
 
-function cleanBlockContent(raw: string, options: ConfigOptions): string {
+function cleanBlockContent(raw: string, options: ConfigOptions, inDocument = false): string {
   let out = repairEscapes(unicodeMathToLatex(raw));
+  if (options.repairStructure) out = repairStructure(out, { inDocument });
   out = out.replace(/[ \t]+$/gm, "");
   out = normalizeVectors(out, options.vectorStyle);
   if (options.autoText) out = autoEscapeText(out);
@@ -1263,7 +1272,10 @@ export function mergeFragmentedMath(src: string): string {
 }
 
 export function cleanMathDetailed(input: string, options: ConfigOptions = DEFAULT_OPTIONS): CleanResult {
-  const normalized = mergeFragmentedMath(normalizeUnicode(input));
+  // Environment typos are fixed before tokenizing: a misspelled \end{...}
+  // would otherwise make the tokenizer treat the whole block as unclosed.
+  const unicodeClean = normalizeUnicode(input);
+  const normalized = mergeFragmentedMath(options.repairStructure ? fixEnvTypos(unicodeClean) : unicodeClean);
   const { tokens, issues: allIssues } = tokenize(normalized);
   // A whole LaTeX document: the preamble (and anything after \end{document})
   // is the author's configuration - \newcommand{\R}{$\mathbb{R}$} and the like -
@@ -1288,7 +1300,7 @@ export function cleanMathDetailed(input: string, options: ConfigOptions = DEFAUL
       return;
     }
     blocks++;
-    const content = cleanBlockContent(token.value, options);
+    const content = cleanBlockContent(token.value, options, !!parts);
     const emitted = token.kind === "display" ? renderDisplay(content, options) : renderInline(content);
     out += emitted;
     const end = idx + 1 < tokens.length ? tokens[idx + 1].start : normalized.length;

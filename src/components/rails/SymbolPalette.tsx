@@ -138,7 +138,7 @@ export default function SymbolPalette({ onInsert }: { onInsert: (template: strin
         ))}
       </div>
       {!shown.length && <p className="py-4 text-center text-xs text-faint">No symbol matches “{query}”.</p>}
-      <p className="text-[11px] leading-snug text-faint">Inserted at the cursor. Select text first to wrap it, e.g. select x then click the hat.</p>
+      <p className="text-[11px] leading-snug text-faint">In prose it is wrapped in $...$ automatically; inside maths it goes in as-is. Select text first to wrap it.</p>
     </div>
   );
 }

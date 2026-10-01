@@ -190,7 +190,7 @@ function AcademicSettings({
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const changed =
-    options.vectorStyle !== "keep" || !options.operatorNames || !options.starEnvironments || primaryAction !== "copy";
+    options.vectorStyle !== "keep" || !options.operatorNames || !options.starEnvironments || !options.repairStructure || primaryAction !== "copy";
 
   useEffect(() => {
     if (!open) return;
@@ -258,6 +258,18 @@ function AcademicSettings({
               value={options.starEnvironments ? "on" : "off"}
               onChange={(v) => set({ starEnvironments: v === "on" })}
               options={[{ id: "on", label: "align → align*" }, { id: "off", label: "Keep numbered" }]}
+            />
+          </SettingRow>
+
+          <SettingRow
+            title="Auto-repair structure"
+            hint="Close missing braces and \\left/\\right, widen array columns, escape %, set snake_case names as text, fix environment typos and illegal nesting, map \\bm."
+          >
+            <Choice<"on" | "off">
+              label="Auto-repair structure"
+              value={options.repairStructure ? "on" : "off"}
+              onChange={(v) => set({ repairStructure: v === "on" })}
+              options={[{ id: "on", label: "Repair" }, { id: "off", label: "Leave as typed" }]}
             />
           </SettingRow>
 
