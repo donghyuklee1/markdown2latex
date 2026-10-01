@@ -69,11 +69,13 @@ browser API in the engine, the design is wrong.
    delimiter to literal text and records an `Issue`. A malformed input must still
    produce output and a rendering preview - the user is usually mid-keystroke.
 
-5. **`dangerouslySetInnerHTML` has exactly two justified call sites.**
+5. **`dangerouslySetInnerHTML` has exactly three justified call sites.**
    `MathOutput` writes highlighted code through `highlightLine`, which escapes
    before it wraps; `Katex` writes `katex.renderToString` output, which cannot
-   emit raw HTML because `trust` is off. Any third call site needs the same kind
-   of argument, in a comment, or it does not belong.
+   emit raw HTML because `trust` is off; `layout.tsx` inlines `THEME_BOOTSTRAP`,
+   a constant string that only ever writes validated hex through
+   `style.setProperty`. Any fourth call site needs the same kind of argument, in
+   a comment, or it does not belong.
 
 6. **Do not restore state in an effect.** Preferences come from
    `src/lib/optionsStore.ts` via `useSyncExternalStore`, which keeps the first

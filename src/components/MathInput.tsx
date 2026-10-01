@@ -34,10 +34,10 @@ function FloatingButton({
       onClick={onClick}
       title={label}
       className={
-        "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium shadow-lg shadow-black/30 backdrop-blur transition-colors " +
+        "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium shadow-lg shadow-black/10 backdrop-blur transition-colors " +
         (tone === "danger"
-          ? "border-ink-700 bg-ink-800/90 text-slate-400 hover:border-rose-500/40 hover:text-rose-300"
-          : "border-ink-700 bg-ink-800/90 text-slate-400 hover:border-ink-600 hover:text-slate-200")
+          ? "border-border bg-surface text-muted hover:border-danger/40 hover:text-danger"
+          : "border-border bg-surface text-muted hover:border-border-strong hover:text-text")
       }
     >
       <Icon size={13} strokeWidth={2.5} />
@@ -99,17 +99,17 @@ export default function MathInput({ value, onChange, issues, onLoadExample, next
   );
 
   return (
-    <section className="flex min-h-[320px] flex-col overflow-hidden rounded-xl border border-ink-800 bg-ink-900/40 lg:min-h-0">
-      <div className="flex shrink-0 items-center gap-2 border-b border-ink-800 px-3 py-2">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">Paste LLM output</h2>
-        <span className="ml-auto font-mono text-[11px] text-slate-600">
+    <section className="themed flex min-h-[320px] min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-surface lg:min-h-0">
+      <div className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-faint">Paste LLM output</h2>
+        <span className="ml-auto font-mono text-[11px] text-faint">
           {lines.length} {lines.length === 1 ? "line" : "lines"}
         </span>
       </div>
 
       <div className="relative flex min-h-0 flex-1">
         {/* gutter: scroll-synced line numbers, red where the parser complained */}
-        <div className="relative w-11 shrink-0 select-none overflow-hidden border-r border-ink-800 bg-ink-950/40">
+        <div className="relative w-11 shrink-0 select-none overflow-hidden border-r border-border bg-surface-2">
           <div style={{ transform: "translateY(" + -scrollTop + "px)", paddingTop: PAD_TOP }}>
             {lines.map((_, idx) => {
               const line = idx + 1;
@@ -122,8 +122,8 @@ export default function MathInput({ value, onChange, issues, onLoadExample, next
                   className={
                     "pr-2 text-right font-mono text-[13px] leading-6 " +
                     (message
-                      ? "cursor-pointer bg-rose-500/15 font-bold text-rose-400"
-                      : "text-ink-600")
+                      ? "cursor-pointer bg-danger/15 font-bold text-danger"
+                      : "text-faint")
                   }
                 >
                   {line}
@@ -139,7 +139,7 @@ export default function MathInput({ value, onChange, issues, onLoadExample, next
             {[...errorLines.keys()].map((line) => (
               <div
                 key={line}
-                className="absolute inset-x-0 border-l-2 border-rose-500 bg-rose-500/10"
+                className="absolute inset-x-0 border-l-2 border-danger bg-danger/10"
                 style={{ top: PAD_TOP + (line - 1) * LINE_HEIGHT - scrollTop, height: LINE_HEIGHT }}
               />
             ))}
@@ -155,7 +155,7 @@ export default function MathInput({ value, onChange, issues, onLoadExample, next
             onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
             placeholder="Paste the messy math here. Nothing leaves your browser."
             aria-label="Markdown and LaTeX math input"
-            className="scroll-slim absolute inset-0 resize-none bg-transparent px-3 pb-20 pt-3 font-mono text-[13px] leading-6 text-slate-200 caret-accent outline-none placeholder:text-ink-600"
+            className="scroll-slim absolute inset-0 resize-none bg-transparent px-3 pb-20 pt-3 font-mono text-[13px] leading-6 text-text caret-accent outline-none placeholder:text-faint"
           />
 
           {/* floating actions, kept clear of the text with a pb-20 on the textarea */}
@@ -170,18 +170,18 @@ export default function MathInput({ value, onChange, issues, onLoadExample, next
       </div>
 
       {issues.length > 0 && (
-        <div className="scroll-slim max-h-28 shrink-0 overflow-y-auto border-t border-rose-500/20 bg-rose-500/[0.06] px-3 py-2">
+        <div className="scroll-slim max-h-28 shrink-0 overflow-y-auto border-t border-danger/25 bg-danger/[0.07] px-3 py-2">
           {issues.map((issue, idx) => (
             <button
               key={idx}
               type="button"
               onClick={() => jumpToLine(issue.line)}
-              className="flex w-full items-start gap-2 rounded px-1 py-0.5 text-left text-xs text-rose-200/90 transition-colors hover:bg-rose-500/10"
+              className="flex w-full items-start gap-2 rounded px-1 py-0.5 text-left text-xs text-danger transition-colors hover:bg-danger/10"
             >
-              <AlertTriangle size={13} className="mt-0.5 shrink-0 text-rose-400" />
+              <AlertTriangle size={13} className="mt-0.5 shrink-0 text-danger" />
               <span>
-                <span className="font-mono font-semibold text-rose-400">Line {issue.line}</span>
-                <span className="mx-1.5 text-rose-500/50">|</span>
+                <span className="font-mono font-semibold text-danger">Line {issue.line}</span>
+                <span className="mx-1.5 text-danger/50">|</span>
                 {issue.message}
               </span>
             </button>

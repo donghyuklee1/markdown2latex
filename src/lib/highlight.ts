@@ -21,16 +21,17 @@ const TOKEN_RE = new RegExp(
   "g",
 );
 
+/** Palette tokens, so highlighting follows the theme and the colour picker. */
 const CLASSES = [
-  "text-slate-500 italic", // comment
-  "text-fuchsia-400", // environment
-  "text-rose-400 font-semibold", // row break
-  "text-sky-400", // command
-  "text-sky-300/80", // escaped char
-  "text-amber-400 font-semibold", // delimiter
-  "text-slate-500", // group
-  "text-emerald-400", // operator
-  "text-orange-300", // number
+  "text-syn-comment italic", // comment
+  "text-syn-env", // environment
+  "text-syn-break font-semibold", // row break
+  "text-syn-cmd", // command
+  "text-syn-cmd/75", // escaped char
+  "text-syn-delim font-semibold", // delimiter
+  "text-syn-brace", // group
+  "text-syn-op", // operator
+  "text-syn-num", // number
 ];
 
 function escapeHtml(src: string): string {

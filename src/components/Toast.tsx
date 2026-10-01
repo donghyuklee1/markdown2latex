@@ -26,10 +26,12 @@ const ICONS: Record<ToastKind, typeof Check> = {
   info: Info,
 };
 
+/* Solid panel fill rather than a colour wash: a toast floats over arbitrary
+ * content, and a 10%-opacity tint is unreadable against the output pane. */
 const TONES: Record<ToastKind, string> = {
-  success: "border-accent/40 bg-accent/10 text-accent",
-  error: "border-rose-500/40 bg-rose-500/10 text-rose-300",
-  info: "border-ink-600 bg-ink-800 text-slate-300",
+  success: "border-accent/50 bg-surface text-accent",
+  error: "border-danger/50 bg-surface text-danger",
+  info: "border-border-strong bg-surface text-muted",
 };
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
@@ -61,7 +63,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             <div
               key={t.id}
               className={
-                "flex animate-toast-in items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium shadow-xl shadow-black/40 backdrop-blur " +
+                "flex animate-toast-in items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium shadow-xl shadow-black/15 backdrop-blur " +
                 TONES[t.kind]
               }
             >

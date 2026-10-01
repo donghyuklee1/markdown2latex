@@ -33,8 +33,8 @@ function Toggle({
       className={
         "flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors " +
         (checked
-          ? "border-accent/30 bg-accent/10 text-accent"
-          : "border-ink-700 bg-ink-900 text-slate-400 hover:border-ink-600 hover:text-slate-300")
+          ? "border-accent/40 bg-accent/10 text-accent"
+          : "border-border bg-surface text-muted hover:border-border-strong hover:text-muted")
       }
     >
       <Icon size={13} strokeWidth={2.5} />
@@ -42,12 +42,12 @@ function Toggle({
       <span
         className={
           "relative h-3.5 w-6 shrink-0 rounded-full transition-colors " +
-          (checked ? "bg-accent/80" : "bg-ink-600")
+          (checked ? "bg-accent/80" : "bg-border-strong")
         }
       >
         <span
           className={
-            "absolute top-0.5 h-2.5 w-2.5 rounded-full bg-ink-950 transition-all " +
+            "absolute top-0.5 h-2.5 w-2.5 rounded-full bg-bg transition-all " +
             (checked ? "left-3" : "left-0.5")
           }
         />
@@ -64,8 +64,8 @@ export default function ControlBar({ options, onChange, blocks, issues }: Props)
   const set = (patch: Partial<ConfigOptions>) => onChange({ ...options, ...patch });
 
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-2 rounded-xl border border-ink-800 bg-ink-900/60 p-2 backdrop-blur">
-      <div className="flex rounded-lg border border-ink-700 bg-ink-950 p-0.5">
+    <div className="themed flex shrink-0 flex-wrap items-center gap-2 rounded-xl border border-border bg-surface p-2">
+      <div className="flex rounded-lg border border-border bg-bg p-0.5">
         {DELIMITER_MODES.map((mode) => (
           <button
             key={mode.id}
@@ -75,8 +75,8 @@ export default function ControlBar({ options, onChange, blocks, issues }: Props)
             className={
               "rounded-md px-3 py-1.5 text-xs font-semibold transition-colors " +
               (options.delimiterMode === mode.id
-                ? "bg-ink-700 text-white shadow-sm"
-                : "text-slate-500 hover:text-slate-300")
+                ? "bg-surface-2 text-text shadow-sm"
+                : "text-faint hover:text-muted")
             }
           >
             {mode.label}
@@ -84,7 +84,7 @@ export default function ControlBar({ options, onChange, blocks, issues }: Props)
         ))}
       </div>
 
-      <div className="h-6 w-px bg-ink-700" />
+      <div className="h-6 w-px bg-surface-2" />
 
       <Toggle
         label="Auto \text{}"
@@ -102,13 +102,13 @@ export default function ControlBar({ options, onChange, blocks, issues }: Props)
       />
 
       <div className="ml-auto flex items-center gap-3 pr-1 text-xs">
-        <span className="flex items-center gap-1.5 text-slate-500" title="Math blocks normalized">
+        <span className="flex items-center gap-1.5 text-faint" title="Math blocks normalized">
           <Blocks size={13} />
           <span className="font-mono">{blocks}</span>
           <span className="hidden sm:inline">{blocks === 1 ? "block" : "blocks"}</span>
         </span>
         {issues.length > 0 ? (
-          <span className="flex items-center gap-1.5 font-medium text-rose-400">
+          <span className="flex items-center gap-1.5 font-medium text-danger">
             <AlertTriangle size={13} />
             <span className="font-mono">{issues.length}</span>
             <span className="hidden sm:inline">{issues.length === 1 ? "issue" : "issues"}</span>

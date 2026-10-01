@@ -32,16 +32,16 @@ export default function CopyButton({ onCopy, copied, disabled, charCount }: Prop
       disabled={disabled}
       className={
         "group flex w-full items-center justify-center gap-2.5 rounded-xl px-4 py-3 text-sm font-semibold transition-all " +
-        "disabled:cursor-not-allowed disabled:border disabled:border-ink-700 disabled:bg-ink-800 disabled:text-slate-600 " +
+        "disabled:cursor-not-allowed disabled:border disabled:border-border disabled:bg-surface-2 disabled:text-faint " +
         (copied
-          ? "bg-accent text-ink-950 shadow-lg shadow-accent/20"
-          : "bg-accent text-ink-950 hover:bg-accent-soft active:scale-[0.99] enabled:shadow-lg enabled:shadow-accent/20")
+          ? "bg-accent text-accent-ink shadow-lg shadow-accent/25"
+          : "bg-accent text-accent-ink hover:bg-accent/90 active:scale-[0.99] enabled:shadow-lg enabled:shadow-accent/25")
       }
     >
       {copied ? <Check size={17} strokeWidth={3} /> : <Copy size={16} strokeWidth={2.5} />}
       <span>{copied ? "Copied to clipboard" : "Copy Clean LaTeX"}</span>
       {!disabled && (
-        <kbd className="ml-1 hidden rounded-md bg-ink-950/15 px-1.5 py-0.5 font-mono text-[11px] font-bold tracking-wide sm:inline">
+        <kbd className="ml-1 hidden rounded-md bg-bg/15 px-1.5 py-0.5 font-mono text-[11px] font-bold tracking-wide sm:inline">
           {isMac ? "⌘" : "Ctrl"}
           {"↵"}
         </kbd>

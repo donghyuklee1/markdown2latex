@@ -2,25 +2,105 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Palette. Every colour is an "R G B" triple so Tailwind can apply opacity to
+ * it, and every one is overridable at runtime by the palette picker, which
+ * writes the same custom properties inline on <html>.
+ *
+ * The light theme is lifted straight off the wordmark: #f6f4f1 ground, black
+ * ink, #ff751f accent. The dark theme inverts the first two - the cream becomes
+ * the text colour - and keeps the orange exactly as-is, since it was chosen to
+ * carry on both.
+ */
 @layer base {
-  html {
+  :root {
+    --bg: 246 244 241;
+    --surface: 252 251 249;
+    --surface-2: 239 236 230;
+    --border: 226 221 212;
+    --border-strong: 205 198 187;
+    --text: 18 17 16;
+    --muted: 110 105 98;
+    --faint: 156 149 140;
+    --accent: 255 117 31;
+    --accent-ink: 255 255 255;
+    --danger: 190 54 38;
+    --ok: 54 118 68;
+
+    --syn-cmd: 176 68 8;
+    --syn-env: 136 58 138;
+    --syn-delim: 183 104 12;
+    --syn-num: 26 96 118;
+    --syn-brace: 150 143 134;
+    --syn-op: 46 110 76;
+    --syn-comment: 156 149 140;
+    --syn-break: 190 54 38;
+
+    --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+      Helvetica, Arial, "Apple Color Emoji", sans-serif;
+    --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", serif;
+    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco,
+      Consolas, monospace;
+
+    color-scheme: light;
+  }
+
+  [data-theme="dark"] {
+    --bg: 24 23 21;
+    --surface: 33 31 28;
+    --surface-2: 44 41 37;
+    --border: 58 54 48;
+    --border-strong: 82 76 68;
+    --text: 246 244 241;
+    --muted: 166 158 148;
+    --faint: 120 113 105;
+    --accent: 255 117 31;
+    --accent-ink: 24 23 21;
+    --danger: 240 118 104;
+    --ok: 124 198 142;
+
+    --syn-cmd: 255 164 104;
+    --syn-env: 214 154 240;
+    --syn-delim: 255 193 96;
+    --syn-num: 132 202 232;
+    --syn-brace: 120 113 105;
+    --syn-op: 132 216 164;
+    --syn-comment: 120 113 105;
+    --syn-break: 240 118 104;
+
     color-scheme: dark;
   }
 
+  html {
+    font-family: var(--font-sans);
+  }
+
   body {
-    @apply bg-ink-950 text-slate-300 antialiased;
+    @apply bg-bg text-text antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    letter-spacing: -0.006em;
   }
 
   ::selection {
-    @apply bg-accent/25 text-white;
+    @apply bg-accent/25;
+  }
+
+  /* Keyboard focus stays visible, pointer focus does not draw a ring. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-accent/60 ring-offset-2;
+    --tw-ring-offset-color: rgb(var(--bg));
   }
 }
 
 @layer components {
+  .font-serif-ui {
+    font-family: var(--font-serif);
+  }
+
   /* Slim scrollbars: the panes are dense enough already. */
   .scroll-slim {
     scrollbar-width: thin;
-    scrollbar-color: #2b3442 transparent;
+    scrollbar-color: rgb(var(--border-strong)) transparent;
   }
 
   .scroll-slim::-webkit-scrollbar {
@@ -33,7 +113,7 @@
   }
 
   .scroll-slim::-webkit-scrollbar-thumb {
-    @apply rounded-full border-[3px] border-solid border-transparent bg-ink-600 bg-clip-content;
+    @apply rounded-full border-[3px] border-solid border-transparent bg-border-strong bg-clip-content;
   }
 }
 
@@ -54,4 +134,31 @@
 
 .katex-display > .katex {
   text-align: left;
+}
+
+/* Theme and palette changes should feel like a dissolve, not a repaint - but
+ * never animate for someone who asked the OS not to. */
+@media (prefers-reduced-motion: no-preference) {
+  body,
+  .themed {
+    transition: background-color 180ms ease, border-color 180ms ease,
+      color 180ms ease;
+  }
+}
+
+/* --- themed logo swap ------------------------------------------------------
+ * The wordmark ships as two PNGs (black ink and cream ink, both on
+ * transparency). A <picture> with prefers-color-scheme would ignore the in-app
+ * toggle, so the swap is driven by the same data-theme attribute everything
+ * else uses. Light is the default, which is also what the server renders. */
+.logo-dark {
+  display: none;
+}
+
+[data-theme="dark"] .logo-dark {
+  display: block;
+}
+
+[data-theme="dark"] .logo-light {
+  display: none;
 }

@@ -98,6 +98,9 @@ export default function Workspace() {
     <main className="mx-auto flex w-full max-w-[1800px] flex-1 flex-col gap-2.5 p-3 sm:p-4 lg:min-h-0">
       <ControlBar options={options} onChange={setOptions} blocks={blocks} issues={issues} />
 
+      {/* min-w-0 on both columns: a grid `1fr` track is minmax(auto, 1fr), so
+          without it the min-content width of a long, unwrapped code line forces
+          the column - and the whole page - wider than the viewport. */}
       <div className="grid flex-1 gap-2.5 lg:min-h-0 lg:grid-cols-2">
         <MathInput
           value={input}
@@ -107,7 +110,7 @@ export default function Workspace() {
           nextExampleLabel={nextExample.label}
         />
 
-        <div className="flex min-h-0 flex-col gap-2.5">
+        <div className="flex min-h-0 min-w-0 flex-col gap-2.5">
           <MathOutput output={output} />
           <div className="shrink-0">
             <CopyButton onCopy={copy} copied={copied} disabled={!output} charCount={output.length} />
