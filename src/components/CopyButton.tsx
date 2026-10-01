@@ -1,14 +1,7 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
 import { Check, Copy } from "lucide-react";
-
-/* The platform never changes mid-session, so there is nothing to subscribe to -
- * but routing the read through useSyncExternalStore keeps the server snapshot
- * explicit and avoids a hydration mismatch on the shortcut hint. */
-const neverChanges = () => () => {};
-const readIsMac = () => /Mac|iPhone|iPad/.test(navigator.userAgent);
-const assumeNotMac = () => false;
+import { useIsMac } from "./ui";
 
 interface Props {
   onCopy: () => void;
@@ -23,7 +16,7 @@ interface Props {
  * this renders, so the click is a single clipboard write - no work in between.
  */
 export default function CopyButton({ onCopy, copied, disabled, charCount }: Props) {
-  const isMac = useSyncExternalStore(neverChanges, readIsMac, assumeNotMac);
+  const isMac = useIsMac();
 
   return (
     <button
@@ -31,11 +24,11 @@ export default function CopyButton({ onCopy, copied, disabled, charCount }: Prop
       onClick={onCopy}
       disabled={disabled}
       className={
-        "group flex w-full items-center justify-center gap-2.5 rounded-xl px-4 py-3 text-sm font-semibold transition-all " +
+        "press press-soft group flex w-full items-center justify-center gap-2.5 rounded-xl px-4 py-3 text-sm font-semibold " +
         "disabled:cursor-not-allowed disabled:border disabled:border-border disabled:bg-surface-2 disabled:text-faint " +
         (copied
           ? "bg-accent text-accent-ink shadow-lg shadow-accent/25"
-          : "bg-accent text-accent-ink hover:bg-accent/90 active:scale-[0.99] enabled:shadow-lg enabled:shadow-accent/25")
+          : "bg-accent text-accent-ink hover:bg-accent/90 hover:shadow-xl enabled:shadow-lg enabled:shadow-accent/25")
       }
     >
       {copied ? <Check size={17} strokeWidth={3} /> : <Copy size={16} strokeWidth={2.5} />}

@@ -1,5 +1,6 @@
 import Header from "@/components/Header";
 import Workspace from "@/components/Workspace";
+import ShortcutsDialog from "@/components/ShortcutsDialog";
 import { ToastProvider } from "@/components/Toast";
 
 /**
@@ -13,6 +14,7 @@ export default function Page() {
         <Header />
         <Workspace />
       </div>
+      <ShortcutsDialog />
     </ToastProvider>
   );
 }

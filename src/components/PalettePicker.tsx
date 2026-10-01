@@ -76,7 +76,7 @@ export default function PalettePicker() {
         title="Edit the colour palette"
         aria-expanded={open}
         className={
-          "flex h-8 items-center gap-1.5 rounded-lg border px-2 text-xs font-medium transition-colors " +
+          "press flex h-8 items-center gap-1.5 rounded-lg border px-2 text-xs font-medium " +
           (open
             ? "border-accent/40 bg-accent/10 text-accent"
             : "border-border bg-surface text-muted hover:border-border-strong hover:text-text")

@@ -38,6 +38,9 @@
     --syn-comment: 156 149 140;
     --syn-break: 190 54 38;
 
+    /* Slight overshoot, so things settle into place rather than stop dead. */
+    --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
     --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
       Helvetica, Arial, "Apple Color Emoji", sans-serif;
     --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", serif;
@@ -84,6 +87,16 @@
     letter-spacing: -0.006em;
   }
 
+  /* Buttons react on touch immediately: no 300ms double-tap wait, no grey
+   * flash from the mobile tap highlight. */
+  button,
+  a,
+  label,
+  [role="separator"] {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
   ::selection {
     @apply bg-accent/25;
   }
@@ -96,6 +109,26 @@
 }
 
 @layer components {
+  /* Tactile press: every clickable control sinks slightly while held and
+   * springs back on release. Only for users who have not asked for less motion. */
+  @media (prefers-reduced-motion: no-preference) {
+    .press {
+      transition-property: transform, background-color, border-color, color, box-shadow, opacity;
+      transition-duration: 160ms;
+      transition-timing-function: var(--ease-spring);
+    }
+    .press:active:not(:disabled) {
+      transform: scale(0.94);
+      transition-duration: 60ms;
+    }
+    .press-soft:active:not(:disabled) {
+      transform: scale(0.985);
+    }
+    .spring {
+      transition: all 260ms var(--ease-spring);
+    }
+  }
+
   .font-serif-ui {
     font-family: var(--font-serif);
   }
@@ -170,4 +203,19 @@
 
 [data-theme="dark"] .logo-light {
   display: none;
+}
+
+/* --- resizing --------------------------------------------------------------
+ * While a splitter is being dragged the whole page shows the resize cursor
+ * and text selection is suspended, so a fast drag never highlights the editor. */
+html[data-resizing="x"],
+html[data-resizing="x"] * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+html[data-resizing="y"],
+html[data-resizing="y"] * {
+  cursor: row-resize !important;
+  user-select: none !important;
 }

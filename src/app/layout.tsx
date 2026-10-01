@@ -2,21 +2,32 @@ import type { Metadata, Viewport } from "next";
 import "katex/dist/katex.min.css";
 import "./globals.css";
 import { THEME_BOOTSTRAP } from "@/lib/theme";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE, SITE_URL, THEME_COLORS } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "markdown2Latex - LLM markdown to LaTeX math cleaner",
-  description:
-    "Paste messy LLM math, get compilation-ready LaTeX. Normalizes delimiters, repairs align environments, wraps stray prose in \\text{}. Runs entirely in your browser.",
-  applicationName: "markdown2Latex",
-  keywords: ["LaTeX", "KaTeX", "Overleaf", "Obsidian", "ChatGPT", "markdown", "math"],
+  metadataBase: new URL(SITE_URL),
+  title: { default: SITE_NAME + " - " + SITE_TAGLINE, template: "%s | " + SITE_NAME },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  keywords: ["LaTeX", "KaTeX", "Overleaf", "Obsidian", "ChatGPT", "Claude", "markdown", "math", "converter"],
+  alternates: { canonical: "/" },
   icons: { icon: "/icon.png", apple: "/icon.png" },
+  openGraph: {
+    type: "website",
+    url: "/",
+    siteName: SITE_NAME,
+    title: SITE_NAME + " - " + SITE_TAGLINE,
+    description: SITE_DESCRIPTION,
+  },
+  twitter: { card: "summary_large_image", title: SITE_NAME, description: SITE_DESCRIPTION },
+  formatDetection: { telephone: false },
 };
 
 export const viewport: Viewport = {
   // Matches --bg in each theme so the mobile browser chrome blends in.
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f6f4f1" },
-    { media: "(prefers-color-scheme: dark)", color: "#181715" },
+    { media: "(prefers-color-scheme: light)", color: THEME_COLORS.light },
+    { media: "(prefers-color-scheme: dark)", color: THEME_COLORS.dark },
   ],
   width: "device-width",
   initialScale: 1,

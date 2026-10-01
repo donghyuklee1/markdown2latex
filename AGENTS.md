@@ -40,10 +40,19 @@ npm run examples   # regenerate examples/ (commit the diff)
 | `src/lib/highlight.ts` | LaTeX highlighter for the output pane. Escapes before it wraps. |
 | `src/lib/defaultText.ts` | Sample inputs, also the fixtures for tests and examples. |
 | `src/lib/optionsStore.ts` | Preferences as an external store over `localStorage`. |
+| `src/lib/persistedStore.ts` | Store factory, plus the draft and layout (split, font size, wrap, tab) stores. |
+| `src/lib/shortcuts.ts` | The shortcut table. Drives both the key handler and the `?` dialog. |
+| `src/lib/share.ts` | URL-fragment share links. Standard web APIs only, so it runs under node tests. |
+| `src/lib/site.ts` | Site name, URL (`NEXT_PUBLIC_SITE_URL`) and links. |
 | `src/lib/katexOptions.ts` | The one KaTeX config. Shared with the tests on purpose. |
 | `src/components/Katex.tsx` | Local KaTeX bindings. Replaced the unmaintained `react-katex`. |
-| `src/components/*` | All client components. Browser APIs belong here, never in `lib/`. |
+| `src/components/*` | All client components. DOM APIs belong here. |
 | `tests/cleaner.spec.ts` | Plain-node checks, run with `tsx`. No test framework. |
+
+The `lib/` stores (`optionsStore`, `persistedStore`, `theme`) may touch
+`localStorage` and `window` inside their snapshot and setter functions - never at
+module load, so they still import under node. Everything else in `lib/` stays
+free of browser APIs.
 
 The purity of `cleaner.ts` is load-bearing: it is what lets the engine run on
 every keystroke and be tested without a browser. If a change seems to need a

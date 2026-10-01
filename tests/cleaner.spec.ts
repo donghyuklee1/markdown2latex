@@ -390,11 +390,40 @@ check(
   "none",
 );
 
+/* --- share links and shortcuts -------------------------------------------- */
+
+import { decodeShare, encodeShare } from "../src/lib/share";
+import { matchShortcut } from "../src/lib/shortcuts";
+
+// tsx runs this file as CommonJS, so no top-level await: the async checks run
+// in here, and the summary below waits for them.
+async function shareChecks(): Promise<void> {
+  const sample = EXAMPLES.map((e) => e.text).join("\n\n");
+  const hash = await encodeShare(sample);
+  check("share link round-trips every example, Hangul included", (await decodeShare(hash)) ?? "null", sample);
+  check("share link is URL-safe", /^#s=[A-Za-z0-9_-]+$/.test(hash) ? "safe" : hash, "safe");
+  check("a truncated share link decodes to null, not a throw", String(await decodeShare(hash.slice(0, 20))), "null");
+  check("a foreign hash is not a share", String(await decodeShare("#section-2")), "null");
+}
+
+{
+  const key = (over: Partial<Parameters<typeof matchShortcut>[0]>) => ({
+    key: "", code: "", altKey: false, metaKey: false, ctrlKey: false, shiftKey: false, ...over,
+  });
+  check("Cmd+Enter copies", String(matchShortcut(key({ key: "Enter", metaKey: true }), true)), "copy");
+  // macOS Option+V reports key "\u221A": matching must go by physical code.
+  check("Option+V matches by code", String(matchShortcut(key({ key: "\u221A", code: "KeyV", altKey: true }), true)), "cleanClipboard");
+  check("? opens help outside the editor", String(matchShortcut(key({ key: "?", shiftKey: true }), false)), "help");
+  check("? types a question mark inside the editor", String(matchShortcut(key({ key: "?", shiftKey: true }), true)), "null");
+}
+
 /* ------------------------------------------------------------------------- */
 
-console.log("");
-if (failures) {
-  console.log(failures + " check(s) failed");
-  process.exit(1);
-}
-console.log("all checks passed");
+void shareChecks().then(() => {
+  console.log("");
+  if (failures) {
+    console.log(failures + " check(s) failed");
+    process.exit(1);
+  }
+  console.log("all checks passed");
+});

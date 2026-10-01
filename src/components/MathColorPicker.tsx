@@ -39,7 +39,7 @@ export default function MathColorPicker() {
   const isPreset = PRESETS.some((p) => p.hex[theme] === current);
 
   return (
-    <div className="ml-auto flex items-center gap-1 pr-1" role="radiogroup" aria-label="Preview math colour">
+    <div className="mr-1 flex items-center gap-1" role="radiogroup" aria-label="Preview math colour">
       {PRESETS.map(({ label, hex }) => {
         const value = hex[theme];
         const selected = value === current;
@@ -52,7 +52,7 @@ export default function MathColorPicker() {
             title={label === "Ink" ? "Ink - same as the text" : label}
             onClick={() => setTokenOverride("math", value)}
             className={
-              "h-5 w-5 rounded-full border border-border-strong transition-transform hover:scale-110 " +
+              "press h-5 w-5 rounded-full border border-border-strong hover:scale-110 " +
               (selected ? "ring-2 ring-accent ring-offset-2 ring-offset-surface" : "")
             }
             style={{ backgroundColor: value ?? "rgb(var(--text))" }}
