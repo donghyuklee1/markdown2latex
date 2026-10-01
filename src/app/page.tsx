@@ -1,5 +1,5 @@
 import Header from "@/components/Header";
-import Workspace from "@/components/Workspace";
+import AppShell from "@/components/AppShell";
 import ShortcutsDialog from "@/components/ShortcutsDialog";
 import { ToastProvider } from "@/components/Toast";
 
@@ -12,7 +12,7 @@ export default function Page() {
     <ToastProvider>
       <div className="flex min-h-screen flex-col lg:h-screen lg:overflow-hidden">
         <Header />
-        <Workspace />
+        <AppShell />
       </div>
       <ShortcutsDialog />
     </ToastProvider>

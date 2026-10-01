@@ -10,11 +10,14 @@ import {
   FileDown,
   Image as ImageIcon,
   ImageDown,
+  FileText,
   Loader2,
+  Pencil,
   NotebookPen,
   Sigma,
 } from "lucide-react";
 import type { PrimaryAction } from "@/lib/persistedStore";
+import BrandMark from "./BrandMark";
 import { useKeyLabel } from "./ui";
 
 export type ExportId =
@@ -31,6 +34,10 @@ interface Props {
   copied: boolean;
   charCount: number;
   snippetName: string;
+  /** The document's file name without extension, and how to rename it. */
+  fileBase: string;
+  fileExt: string;
+  onRename: (name: string) => void;
   primaryAction: PrimaryAction;
   /** Overleaf is opening: spinner on its button. */
   overleafBusy: boolean;
@@ -52,6 +59,53 @@ const MENU: ReadonlyArray<
 ];
 
 /**
+ * The document's file name, edited in place. It is the same name as the tab,
+ * and every save path uses it: downloads, the PNG, and the Overleaf project.
+ */
+function FileNameChip({ base, ext, onRename }: { base: string; ext: string; onRename: (name: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  if (editing) {
+    return (
+      <label className="flex h-[46px] min-w-0 shrink items-center gap-1 rounded-xl border border-accent/60 bg-surface px-2.5 shadow-sm ring-2 ring-accent/15">
+        <FileText size={15} className="shrink-0 text-accent" />
+        <input
+          autoFocus
+          defaultValue={base === "clean-math" ? "" : base}
+          placeholder="clean-math"
+          aria-label="File name"
+          onFocus={(e) => e.currentTarget.select()}
+          onBlur={(e) => {
+            onRename(e.currentTarget.value);
+            setEditing(false);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+            if (e.key === "Escape") setEditing(false);
+          }}
+          className="w-32 min-w-0 bg-transparent font-mono text-xs text-text outline-none placeholder:text-faint sm:w-40"
+        />
+        <span className="font-mono text-xs text-faint">{ext}</span>
+      </label>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => setEditing(true)}
+      title="Rename - used for downloads, the image, the Overleaf project and the tab"
+      className="press press-soft group flex h-[46px] min-w-0 max-w-[13rem] shrink items-center gap-1.5 rounded-xl border border-border bg-surface px-2.5 text-xs text-muted hover:border-border-strong hover:text-text"
+    >
+      <FileText size={15} className="shrink-0 text-faint group-hover:text-accent" />
+      <span className="truncate font-mono">
+        {base}
+        <span className="text-faint">{ext}</span>
+      </span>
+      <Pencil size={11} className="shrink-0 opacity-0 transition-opacity group-hover:opacity-70" />
+    </button>
+  );
+}
+
+/**
  * Copy is the action that matters, so it stays one big button; every other
  * format hangs off the chevron beside it. Open in Overleaf sits next to them.
  */
@@ -60,6 +114,9 @@ export default function ActionBar({
   copied,
   charCount,
   snippetName,
+  fileBase,
+  fileExt,
+  onRename,
   primaryAction,
   overleafBusy,
   onExport,
@@ -93,6 +150,7 @@ export default function ActionBar({
 
   return (
     <div className="flex gap-2" ref={ref}>
+      <FileNameChip base={fileBase} ext={fileExt} onRename={onRename} />
       <div className="relative flex min-w-0 flex-1">
         <button
           type="button"
@@ -104,7 +162,15 @@ export default function ActionBar({
           }
         >
           {copied ? <Check size={17} strokeWidth={3} /> : <Copy size={16} strokeWidth={2.5} />}
-          <span className="truncate">{copied ? "Copied to clipboard" : "Copy Clean LaTeX"}</span>
+          <span className="flex min-w-0 items-center gap-1.5 truncate">
+            {copied ? (
+              "Copied to clipboard"
+            ) : (
+              <>
+                Copy Clean <BrandMark mark="latex" height="1.05em" className="translate-y-[0.06em]" />
+              </>
+            )}
+          </span>
           {!disabled && primaryAction === "copy" && primaryKbd}
           {charCount > 0 && (
             <span className="ml-auto hidden font-mono text-[11px] font-medium opacity-60 xl:inline">
@@ -162,10 +228,15 @@ export default function ActionBar({
         onClick={onOverleaf}
         disabled={disabled || overleafBusy}
         title="Open as a new Overleaf project, preamble included (Alt+O). This sends the document to Overleaf."
-        className="press press-soft flex shrink-0 items-center gap-2 rounded-xl border border-ok/40 bg-ok/10 px-3.5 text-sm font-semibold text-ok enabled:hover:border-ok enabled:hover:bg-ok enabled:hover:text-bg disabled:cursor-not-allowed disabled:opacity-60"
+        aria-label="Open in Overleaf"
+        className="press press-soft group flex shrink-0 items-center gap-2 rounded-xl border border-overleaf/40 bg-overleaf/10 px-3.5 text-sm font-semibold text-overleaf enabled:hover:border-overleaf enabled:hover:bg-overleaf enabled:hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {overleafBusy ? <Loader2 size={16} className="animate-spin" /> : <ExternalLink size={16} strokeWidth={2.25} />}
-        <span className="hidden whitespace-nowrap sm:inline">{overleafBusy ? "Opening…" : "Open in Overleaf"}</span>
+        {overleafBusy ? <Loader2 size={16} className="animate-spin" /> : <ExternalLink size={15} strokeWidth={2.25} className="opacity-70" />}
+        <span className="hidden items-center gap-1.5 whitespace-nowrap sm:flex">
+          {overleafBusy ? "Opening…" : "Open in"}
+          <BrandMark mark="overleaf" height="1.15em" />
+        </span>
+        <BrandMark mark="overleaf" height="1.1em" className="sm:hidden" />
         {!disabled && !overleafBusy && primaryAction === "overleaf" && primaryKbd}
       </button>
     </div>

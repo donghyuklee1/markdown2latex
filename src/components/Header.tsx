@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Coffee, Star } from "lucide-react";
 import { GITHUB_URL, SPONSOR_URL } from "@/lib/site";
 import { ShortcutsButton } from "./ShortcutsDialog";
+import { ViewSwitch } from "./AppShell";
 import PalettePicker from "./PalettePicker";
 import ThemeToggle from "./ThemeToggle";
 
@@ -22,18 +23,18 @@ function Wordmark() {
       <Image
         src="/logo-light.png"
         alt="markdown2Latex"
-        width={1094}
-        height={436}
+        width={891}
+        height={302}
         priority
-        className="logo-light h-8 w-auto sm:h-10"
+        className="logo-light h-6 w-auto sm:h-8"
       />
       <Image
         src="/logo-dark.png"
         alt="markdown2Latex"
-        width={1094}
-        height={436}
+        width={891}
+        height={302}
         priority
-        className="logo-dark h-8 w-auto sm:h-10"
+        className="logo-dark h-6 w-auto sm:h-8"
       />
     </Link>
   );
@@ -41,8 +42,12 @@ function Wordmark() {
 
 export default function Header() {
   return (
-    <header className="themed flex shrink-0 items-center gap-4 border-b border-border px-4 py-3 sm:px-6">
+    <header className="themed shrink-0 border-b border-border">
+      {/* Same max width and side padding as the workspace below, so the wordmark's
+          left edge lines up with the panels. */}
+      <div className="mx-auto flex w-full max-w-[1910px] items-center gap-3 px-3 py-2.5 sm:gap-4 sm:px-4">
       <Wordmark />
+      <ViewSwitch />
 
       <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
         <a
@@ -72,6 +77,7 @@ export default function Header() {
         <ShortcutsButton />
         <ThemeToggle />
         <PalettePicker />
+      </div>
       </div>
     </header>
   );

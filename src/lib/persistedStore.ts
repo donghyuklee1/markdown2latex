@@ -22,6 +22,8 @@ export function createPersistedStore<T>(
   defaults: T,
   /** Coerce whatever was stored (possibly by an older version) into a valid T. */
   revive: (raw: unknown) => T,
+  /** First run only (nothing stored yet): build the initial value from older keys. */
+  migrate?: () => T | null,
 ): PersistedStore<T> {
   let cached: T | null = null;
   const listeners = new Set<() => void>();
@@ -33,7 +35,7 @@ export function createPersistedStore<T>(
     if (cached !== null) return cached;
     try {
       const raw = window.localStorage.getItem(key);
-      cached = raw === null ? defaults : revive(JSON.parse(raw));
+      cached = raw === null ? (migrate?.() ?? defaults) : revive(JSON.parse(raw));
     } catch {
       cached = defaults;
     }
@@ -73,8 +75,10 @@ export function createPersistedStore<T>(
 
 /* ------------------------------------------------------------ layout prefs */
 
-export type OutputTab = "code" | "preview" | "diff";
-export const OUTPUT_TABS: ReadonlyArray<OutputTab> = ["code", "preview", "diff"];
+export type OutputTab = "code" | "preview" | "diff" | "graph";
+export const OUTPUT_TABS: ReadonlyArray<OutputTab> = ["code", "preview", "diff", "graph"];
+/** The cleaner workspace, or the Research Lab tools. */
+export type AppView = "clean" | "lab";
 /** What Cmd/Ctrl+Enter does. */
 export type PrimaryAction = "copy" | "overleaf";
 export type Focus = "none" | "input" | "output";
@@ -94,6 +98,9 @@ export interface UiPrefs {
   primaryAction: PrimaryAction;
   /** Scroll the output along with the editor. */
   syncScroll: boolean;
+  view: AppView;
+  /** Last Research Lab tool opened (a ToolId; validated where it is used). */
+  labTool: string;
 }
 
 export const SPLIT_MIN = 0.2;
@@ -113,6 +120,8 @@ export const DEFAULT_UI: UiPrefs = {
   focus: "none",
   primaryAction: "copy",
   syncScroll: true,
+  view: "clean",
+  labTool: "arxiv",
 };
 
 const clamp = (v: unknown, lo: number, hi: number, fallback: number) =>
@@ -130,6 +139,8 @@ export const uiStore = createPersistedStore<UiPrefs>("cleanmath:ui:v1", DEFAULT_
     focus: r.focus === "input" || r.focus === "output" ? r.focus : "none",
     primaryAction: r.primaryAction === "overleaf" ? "overleaf" : "copy",
     syncScroll: r.syncScroll !== false,
+    view: r.view === "lab" ? "lab" : "clean",
+    labTool: typeof r.labTool === "string" ? r.labTool : DEFAULT_UI.labTool,
   };
 });
 

@@ -29,14 +29,14 @@ function tidyMessage(raw: string): string {
     .trim();
 }
 
-export function diagnose(blocks: ReadonlyArray<MathBlock>): Diagnostic[] {
+export function diagnose(blocks: ReadonlyArray<MathBlock>, macros: Readonly<Record<string, string>> = {}): Diagnostic[] {
   const out: Diagnostic[] = [];
   for (const block of blocks) {
     for (const seg of segment(block.emitted)) {
       if (seg.type === "text") continue;
       const latex = prepareForKatex(seg.value);
       try {
-        katex.renderToString(latex, { ...KATEX_OPTIONS, displayMode: seg.type === "display" });
+        katex.renderToString(latex, { ...KATEX_OPTIONS, displayMode: seg.type === "display", macros: { ...macros } });
       } catch (err) {
         const parse = err instanceof katex.ParseError ? err : null;
         // Cleaning keeps a display block's rows on their own lines, so the row

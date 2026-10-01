@@ -24,6 +24,8 @@
     --faint: 156 149 140;
     --accent: 255 117 31;
     --accent-ink: 255 255 255;
+    /* Overleaf's brand green, for its mark and button. */
+    --overleaf: 4 101 48;
     /* Rendered maths in the preview; follows --text until the user picks one. */
     --math: 18 17 16;
     --danger: 190 54 38;
@@ -61,6 +63,7 @@
     --faint: 120 113 105;
     --accent: 255 117 31;
     --accent-ink: 24 23 21;
+    --overleaf: 74 190 120;
     --math: 246 244 241;
     --danger: 240 118 104;
     --ok: 124 198 142;
@@ -246,4 +249,64 @@ html[data-resizing="y"] * {
 .expand > * {
   min-height: 0;
   overflow: hidden;
+}
+
+/* --- Studio Workbench motion -------------------------------------------------
+ * Open: a long, soft deceleration (iOS sheet curve). Close: shorter and
+ * accelerating out, so dismissing feels responsive rather than sluggish. The
+ * content trails the panel by a beat. All of it collapses to instant under
+ * prefers-reduced-motion via the global rule above. */
+.bench {
+  transition: transform 300ms cubic-bezier(0.4, 0, 0.9, 0.6), box-shadow 300ms ease;
+}
+.bench[data-open="true"] {
+  transition: transform 520ms cubic-bezier(0.32, 0.72, 0, 1), box-shadow 520ms ease;
+}
+.bench .bench-content {
+  opacity: 0;
+  transform: translateX(14px);
+  transition: opacity 160ms ease, transform 220ms ease;
+}
+.bench[data-open="true"] .bench-content {
+  opacity: 1;
+  transform: none;
+  transition: opacity 360ms ease 120ms, transform 520ms cubic-bezier(0.32, 0.72, 0, 1) 80ms;
+}
+@media (max-width: 1023px) {
+  .bench .bench-content {
+    transform: translateY(10px);
+  }
+}
+
+@keyframes bench-in-right {
+  from { opacity: 0; transform: translateX(18px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes bench-in-left {
+  from { opacity: 0; transform: translateX(-18px); }
+  to { opacity: 1; transform: none; }
+}
+.bench-in-right {
+  animation: bench-in-right 280ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.bench-in-left {
+  animation: bench-in-left 280ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* --- Tools: switching between tools ---------------------------------------
+ * The new tool rises from below when you move down the list and drops from
+ * above when you move up, on the same soft curve as the Workbench. */
+@keyframes lab-in-down {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes lab-in-up {
+  from { opacity: 0; transform: translateY(-14px); }
+  to { opacity: 1; transform: none; }
+}
+.lab-in-down {
+  animation: lab-in-down 380ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.lab-in-up {
+  animation: lab-in-up 380ms cubic-bezier(0.32, 0.72, 0, 1);
 }

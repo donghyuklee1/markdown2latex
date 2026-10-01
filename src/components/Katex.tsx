@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { createContext, useContext, useMemo } from "react";
 import katex from "katex";
 import { KATEX_OPTIONS } from "@/lib/katexOptions";
 
@@ -17,6 +17,13 @@ import { KATEX_OPTIONS } from "@/lib/katexOptions";
  * renders during SSR and the first paint is not blank.
  */
 
+/**
+ * The document's own macros (`\newcommand` and friends from a pasted .tex
+ * preamble). Provided once by the workspace; every formula rendered below it
+ * understands `\vr{x}` and `\R` without each caller passing them along.
+ */
+export const MacroContext = createContext<Readonly<Record<string, string>>>({});
+
 interface MathProps {
   math: string;
   /** Takes over rendering when KaTeX cannot parse the input. */
@@ -24,13 +31,15 @@ interface MathProps {
 }
 
 function useRendered(math: string, displayMode: boolean) {
+  const macros = useContext(MacroContext);
   return useMemo(() => {
     try {
-      return { html: katex.renderToString(math, { ...KATEX_OPTIONS, displayMode }), error: null };
+      // A fresh copy each time: KaTeX writes \gdef definitions into the object.
+      return { html: katex.renderToString(math, { ...KATEX_OPTIONS, displayMode, macros: { ...macros } }), error: null };
     } catch (error) {
       return { html: "", error: error instanceof Error ? error : new Error(String(error)) };
     }
-  }, [math, displayMode]);
+  }, [math, displayMode, macros]);
 }
 
 export function InlineMath({ math, renderError }: MathProps) {

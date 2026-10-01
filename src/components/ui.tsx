@@ -69,7 +69,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
         "press flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-lg text-xs font-medium disabled:opacity-35 " +
         (showLabel === "never" ? "w-7 " : "px-2 ") +
         (active
-          ? "bg-accent/12 text-accent hover:bg-accent/20 "
+          ? "bg-accent/10 text-accent hover:bg-accent/20 "
           : "text-faint hover:bg-surface-2 hover:text-text ") +
         className
       }

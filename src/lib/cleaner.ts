@@ -17,6 +17,8 @@
  * stay greppable, diffable and impossible to mangle in transit.
  */
 
+import { documentParts } from "./texDocument";
+
 /* ------------------------------------------------------------------ options */
 
 export type DelimiterMode = "standard" | "academic" | "inline";
@@ -1161,7 +1163,14 @@ export interface CleanResult {
 
 export function cleanMathDetailed(input: string, options: ConfigOptions = DEFAULT_OPTIONS): CleanResult {
   const normalized = normalizeUnicode(input);
-  const { tokens, issues } = tokenize(normalized);
+  const { tokens, issues: allIssues } = tokenize(normalized);
+  // A whole LaTeX document: the preamble (and anything after \end{document})
+  // is the author's configuration - \newcommand{\R}{$\mathbb{R}$} and the like -
+  // and passes through exactly as written. Only the body is cleaned.
+  const parts = documentParts(normalized);
+  const inBody = (offset: number) => !parts || (offset >= parts.bodyStart && offset < parts.bodyEnd);
+  const bodyLine = parts ? normalized.slice(0, parts.bodyStart).split("\n").length : 0;
+  const issues = parts ? allIssues.filter((i) => i.line >= bodyLine) : allIssues;
 
   let out = "";
   let blocks = 0;
@@ -1171,6 +1180,10 @@ export function cleanMathDetailed(input: string, options: ConfigOptions = DEFAUL
   tokens.forEach((token, idx) => {
     if (token.kind === "text") {
       out += token.value;
+      return;
+    }
+    if (!inBody(token.start)) {
+      out += normalized.slice(token.start, idx + 1 < tokens.length ? tokens[idx + 1].start : normalized.length);
       return;
     }
     blocks++;

@@ -11,12 +11,16 @@ CleanMath turns messy LLM-generated math into LaTeX that compiles on the first
 try. Next.js 16 App Router, React 19, single static page, Tailwind, KaTeX. There is no
 backend and there must never be one: no route handlers, no server actions, and
 no request that carries user text. Privacy is a product feature, not an
-implementation detail. There are exactly two exits, both deliberate:
+implementation detail. There are exactly three exits, all deliberate and all
+triggered by an explicit click:
 
 - **Open in Overleaf** (`components/exporters.ts`) POSTs the document to
   Overleaf's `/docs` endpoint - only on an explicit click, and its tooltip says so.
 - **PNG export** `fetch`es KaTeX's font files - this site's own static assets,
   carrying no user data - to inline them into the image.
+- **arXiv Formula Extractor** (`lab/panels/ArxivPanel.tsx`) fetches
+  `https://arxiv.org/src/<id>` - the only thing sent is the paper ID the user
+  typed. Use `/src/`, not `/e-print/`: the latter redirects without CORS headers.
 
 Anything else that would send data off the page does not belong.
 
@@ -70,6 +74,35 @@ The purity of `cleaner.ts` is load-bearing: it is what lets the engine run on
 every keystroke and be tested without a browser. If a change seems to need a
 browser API in the engine, the design is wrong.
 
+## Tools, Studio, documents
+
+`src/components/ResearchLab.tsx` is the **Tools** view (header switch "Editor |
+Tools", `Alt+R`) with nine tools. Each tool is three files:
+
+| Path | Role |
+| --- | --- |
+| `src/lib/lab/<tool>.ts` | Pure logic. Same rules as the engine: no DOM, no network, `\uXXXX` escapes, never throws. |
+| `src/components/lab/panels/<Tool>Panel.tsx` | The UI, built only from `src/components/lab/kit.tsx`. Lazy-loaded via `lab/tools.ts`. |
+| `tests/lab/<tool>.spec.ts` | Checks via `tests/harness.ts`; `npm test` runs every `tests/**/*.spec.ts`. |
+
+Shared pieces: `src/lib/lab/archive.ts` reads `.zip` / `.tar` / `.tar.gz` and
+writes `.zip` with web-standard APIs only; `lab/tools.ts` is the registry (title,
+slug, group, icon). A new tool adds a registry entry and those three files.
+
+The **Studio** features live beside the editor: `components/studio/` (Workbench
+drawer, formula graph/flow) with pure logic in `src/lib/studio/`, all taking the
+`StudioContext` contract in `components/studio/types.ts`.
+
+Editor-level modules: `lib/repair.ts` (Check & Fix: KaTeX-verified repairs),
+`lib/texDocument.ts` (whole `.tex` documents: preamble passthrough, preamble
+macros -> KaTeX `macros`, a small prose reader for the preview), and
+`lib/documents.ts` (tabs, history, snippets, file names). Document macros reach
+every KaTeX render through `MacroContext` in `components/Katex.tsx`.
+
+`tests/lab/ascii.spec.ts` enforces rule 1 for all of `src/lib/`: something on
+the maintainer's machine has been seen decoding `\uXXXX` escapes back into
+literal characters after saves, and this guard catches it in CI.
+
 ## Rules specific to this codebase
 
 1. **Non-ASCII characters in `src/lib/` are written as `\uXXXX` escapes or built
@@ -90,15 +123,17 @@ browser API in the engine, the design is wrong.
    delimiter to literal text and records an `Issue`. A malformed input must still
    produce output and a rendering preview - the user is usually mid-keystroke.
 
-5. **HTML sinks have exactly four justified call sites.**
+5. **HTML sinks have exactly five justified call sites.**
    `MathOutput` writes highlighted code through `highlightLine`, which escapes
    before it wraps; `Katex` writes `katex.renderToString` output, which cannot
    emit raw HTML because `trust` is off; `layout.tsx` inlines `THEME_BOOTSTRAP`,
    a constant string that only ever writes validated hex through
    `style.setProperty`; `exporters.ts` sets `innerHTML` on an off-screen node
-   from the same trusted `renderToString` output, to draw the PNG export. Any
-   fifth call site needs the same kind of argument, in a comment, or it does not
-   belong.
+   from the same trusted `renderToString` output, to draw the PNG export;
+   `lab/kit.tsx`'s `TextOutput` writes `highlightLine` output, the same escaping
+   argument as `MathOutput`. Any sixth call site needs the same kind of argument,
+   in a comment, or it does not belong. Tool panels display results
+   through `TextOutput` or the `Katex` components, never their own sink.
 
 6. **Do not restore state in an effect.** Preferences come from
    `src/lib/optionsStore.ts` via `useSyncExternalStore`, which keeps the first

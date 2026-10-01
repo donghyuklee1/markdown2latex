@@ -24,6 +24,7 @@ const config: Config = {
         "accent-ink": token("accent-ink"),
         danger: token("danger"),
         ok: token("ok"),
+        overleaf: token("overleaf"),
         syn: {
           cmd: token("syn-cmd"),
           env: token("syn-env"),

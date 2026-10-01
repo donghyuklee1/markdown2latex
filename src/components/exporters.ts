@@ -141,7 +141,7 @@ function loadKatexCss(): Promise<string> {
  * preview shows, inside an SVG <foreignObject> with KaTeX's CSS and fonts
  * inlined, drawn onto a canvas at 2-3x for crisp pasting into slides.
  */
-export async function renderPreviewPng(output: string, fontSize: number): Promise<Blob> {
+export async function renderPreviewPng(output: string, fontSize: number, macros: Readonly<Record<string, string>> = {}): Promise<Blob> {
   const css = await loadKatexCss();
   const background = token("surface");
   const root = document.createElement("div");
@@ -171,6 +171,7 @@ export async function renderPreviewPng(output: string, fontSize: number): Promis
       throwOnError: false,
       output: "html",
       displayMode: seg.type === "display",
+      macros: { ...macros },
     });
     root.appendChild(holder);
   }

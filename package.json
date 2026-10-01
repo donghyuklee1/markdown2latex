@@ -9,9 +9,9 @@
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
-    "test": "tsx tests/cleaner.spec.ts",
+    "test": "node scripts/run-tests.mjs",
     "examples": "tsx scripts/generate-examples.ts",
-    "logos": "node scripts/build-logos.mjs",
+    "logos": "node scripts/build-logos.mjs && node scripts/build-brand.mjs",
     "verify": "npm run lint && npm run typecheck && npm run test && npm run build"
   },
   "dependencies": {

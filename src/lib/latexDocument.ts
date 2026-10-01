@@ -17,9 +17,9 @@
 import { segment } from "./cleaner";
 
 const MASK = String.fromCharCode(0);
-const HANGUL = /[가-힣ㄱ-ㆎ]/;
+const HANGUL = /[\uAC00-\uD7A3\u3131-\u318E]/;
 /** Scripts pdfLaTeX cannot typeset without extra packages; XeLaTeX handles them. */
-const NEEDS_UNICODE_ENGINE = /[Ͱ-ϿЀ-ӿ぀-ヿ一-鿿가-힣]/;
+const NEEDS_UNICODE_ENGINE = /[\u0370-\u03FF\u0400-\u04FF\u3040-\u30FF\u4E00-\u9FFF\uAC00-\uD7A3]/;
 
 export type TexEngine = "pdflatex" | "xelatex";
 

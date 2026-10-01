@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, Blocks, CheckCircle2, Languages, Minus, Plus, SlidersHorizontal, Space, WrapText } from "lucide-react";
+import { AlertTriangle, Blocks, CheckCircle2, Languages, Minus, PanelRightOpen, Plus, SlidersHorizontal, Space, WrapText } from "lucide-react";
 import { DELIMITER_MODES, VECTOR_STYLES, type ConfigOptions, type DelimiterMode, type VectorStyle } from "@/lib/cleaner";
 import { DEFAULT_UI, FONT_MAX, FONT_MIN, type PrimaryAction } from "@/lib/persistedStore";
 
@@ -15,6 +15,8 @@ interface Props {
   onFontSize: (next: number) => void;
   primaryAction: PrimaryAction;
   onPrimaryAction: (next: PrimaryAction) => void;
+  benchOpen: boolean;
+  onToggleBench: () => void;
 }
 
 function Toggle({
@@ -286,6 +288,8 @@ export default function ControlBar({
   onFontSize,
   primaryAction,
   onPrimaryAction,
+  benchOpen,
+  onToggleBench,
 }: Props) {
   const set = (patch: Partial<ConfigOptions>) => onChange({ ...options, ...patch });
 
@@ -321,6 +325,22 @@ export default function ControlBar({
       </div>
 
       <AcademicSettings options={options} set={set} primaryAction={primaryAction} onPrimaryAction={onPrimaryAction} />
+
+      <button
+        type="button"
+        onClick={onToggleBench}
+        aria-expanded={benchOpen}
+        title="Studio Workbench: shape sandbox, unit checker, sketch to TikZ (Alt+B)"
+        className={
+          "press flex h-[34px] items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium " +
+          (benchOpen
+            ? "border-accent/40 bg-accent/10 text-accent"
+            : "border-border bg-surface text-muted hover:border-border-strong hover:text-text")
+        }
+      >
+        <PanelRightOpen size={14} strokeWidth={2.25} />
+        <span className="hidden lg:inline">Workbench</span>
+      </button>
 
       <div className="ml-auto flex items-center gap-3 pr-1 text-xs">
         <FontSize value={fontSize} onChange={onFontSize} />

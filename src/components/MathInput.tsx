@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
+  Stethoscope,
   HeartPulse,
   ChevronUp,
   ClipboardPaste,
@@ -44,6 +45,10 @@ interface Props {
   onReplace: (text: string, source: string) => void;
   onClear: () => void;
   onCleanClipboard: () => void;
+  /** Open the Check & Fix review. */
+  onCheckFix: () => void;
+  /** Lets the workspace drive the selection (formula graph, studio tools). */
+  editorRef?: React.RefObject<HTMLTextAreaElement | null>;
 }
 
 function FloatingButton({
@@ -179,8 +184,11 @@ export default function MathInput({
   onReplace,
   onClear,
   onCleanClipboard,
+  onCheckFix,
+  editorRef,
 }: Props) {
-  const ref = useRef<HTMLTextAreaElement>(null);
+  const localRef = useRef<HTMLTextAreaElement>(null);
+  const ref = editorRef ?? localRef;
   const fileRef = useRef<HTMLInputElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -221,7 +229,7 @@ export default function MathInput({
     } finally {
       ref.current?.focus();
     }
-  }, [onReplace, toast]);
+  }, [onReplace, toast, ref]);
 
   const openFile = useCallback(
     async (file: File | undefined) => {
@@ -253,7 +261,7 @@ export default function MathInput({
         setScrollTop(ta.scrollTop);
       }
     },
-    [lines, lineHeight, wrap],
+    [lines, lineHeight, wrap, ref],
   );
 
   const hasFiles = (e: React.DragEvent) => Array.from(e.dataTransfer.types).includes("Files");
@@ -280,10 +288,29 @@ export default function MathInput({
       }}
     >
       <div className="flex shrink-0 items-center gap-1 border-b border-border py-1.5 pl-3 pr-1.5">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-faint">Paste LLM output</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-faint">Paste Markdown Output</h2>
         <span className="ml-auto mr-1 hidden font-mono text-[11px] text-faint sm:inline">
           {lines.length} {lines.length === 1 ? "line" : "lines"} · {value.length.toLocaleString()} chars
         </span>
+        {/* Its own, clearly separate control: checks that everything renders and
+            proposes repairs. The badge is the live problem count. */}
+        <button
+          type="button"
+          onClick={onCheckFix}
+          title="Check that every equation renders, and fix what does not (Alt+F)"
+          className={
+            "press relative mr-1 flex h-7 items-center gap-1.5 rounded-lg border px-2 text-xs font-semibold " +
+            (problems.length
+              ? "border-danger/40 bg-danger/[0.08] text-danger hover:bg-danger/15"
+              : "border-border bg-surface text-muted hover:border-border-strong hover:text-text")
+          }
+        >
+          <Stethoscope size={13} strokeWidth={2.25} />
+          <span className="hidden sm:inline">Check &amp; Fix</span>
+          {problems.length > 0 && (
+            <span className="rounded-full bg-danger px-1.5 font-mono text-[10px] leading-4 text-bg">{problems.length}</span>
+          )}
+        </button>
         <IconButton icon={WrapText} label="Word wrap" title="Word wrap (Alt+W)" active={wrap} onClick={onToggleWrap} />
         <IconButton
           icon={maximized ? Minimize2 : Maximize2}

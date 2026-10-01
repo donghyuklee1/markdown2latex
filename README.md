@@ -146,6 +146,21 @@ Every rule is conservative by design: each one has a test where it must fire
 - **Clean clipboard** - paste, clean and copy back in a single click (`Alt+V`),
   without touching the editor.
 - **Themes** - light and dark, plus a palette editor with an eyedropper.
+- **Document tabs** - several drafts at once, each autosaved. Double-click a tab
+  to rename it; that name is also the **file name** every save uses (downloads,
+  the PNG, the Overleaf project).
+- **Rails** - on wide screens the side margins hold a symbol palette (click to
+  insert, wraps the selection), saved snippets, automatic history snapshots, and
+  an equation outline with error badges.
+- **Check & Fix** (`Alt+F`) - finds everything that stops the input rendering
+  and proposes repairs you review first: unclosed delimiters and environments,
+  missing or stray braces, unpaired `\left`/`\right`, command typos
+  (`\alpah` -> `\alpha`), double superscripts, maths written in prose. Each fix
+  is re-checked with KaTeX; what cannot be fixed safely is listed, not guessed.
+- **LaTeX documents** - paste a whole `.tex` file and the preamble is kept
+  exactly as written, its `\newcommand` / `\DeclareMathOperator` macros are
+  understood everywhere, and the preview renders the body as a document
+  (sections, theorem environments, lists, citations).
 
 ### Pro tools
 
@@ -166,6 +181,38 @@ Every rule is conservative by design: each one has a test where it must fire
   flavour (environments kept inside `$$`), the preview as a PNG image (copied or
   downloaded), the snippet, or a complete `.tex` document.
 - **Scroll sync** - the output follows the editor as you scroll.
+- **Formula graph** - a fourth output tab. The *Flow* view lists every equation
+  in document order with arcs to the equations that use what it defines; select
+  one to light its lineage and jump to it in the editor. *Network* shows the
+  classic node-link graph for small documents.
+
+### Studio Workbench
+
+A slide-over drawer (`Alt+B`) beside the editor, reading the current document:
+
+- **Shape Sandbox** - paste PyTorch / NumPy code; a built-in shape interpreter
+  checks it against the paper's `A \in \mathbb{R}^{m \times n}` declarations and
+  equations: `Dimensions Match [m x n]` or `Shape Mismatch` with the reason.
+- **Unit Checker** - dimensional analysis of every relation (`E = mc^2` passes,
+  `E = mc` does not), inconsistent sums and non-dimensionless function arguments.
+- **Sketch -> TikZ** - draw boxes, circles, diamonds and arrows; strokes snap to
+  clean shapes and become compilable TikZ with a matching live preview.
+
+### Tools
+
+The **Tools** view (header switch, `Alt+R`) holds nine research utilities:
+
+| Tool | What it does |
+| --- | --- |
+| arXiv Formula Extractor | Fetches a paper's source by ID and returns the exact LaTeX of any equation, with its macros |
+| Paper Flattener | Inlines `\input` / `\include` / `.bbl` into one `.tex`; arXiv-ready zip |
+| LLM Proofreading Shield | Hides maths, citations and refs behind `[MATH_1]` tokens for an LLM, then restores them |
+| Symbol Table | Every symbol used, flagged when never defined; generates a table or `nomencl` block |
+| Tensor -> Matrix | NumPy / PyTorch printouts to `bmatrix` with `N x C x H x W` shape statements |
+| BibTeX Cleaner | Consistent keys, `Last, First` names, journal abbreviations, duplicates merged, escaping |
+| Journal Template Converter | NeurIPS / IEEE / LNCS / ACM / Nature front matter and float conventions |
+| Overflow Resizer | Estimates widths and fits wide equations and tables to the column |
+| Figure Optimizer | Downsamples figures to print DPI using the `\includegraphics` widths; zip for Overleaf |
 
 ## Keyboard shortcuts
 
@@ -178,6 +225,8 @@ Every rule is conservative by design: each one has a test where it must fire
 | `Alt` `V` | Clean the clipboard | | `Alt` `=` / `-` / `0` | Text size |
 | `Alt` `1` / `2` / `3` | Standard / Academic / Inline | | `Alt` `T` | Light / dark |
 | `Tab` / `Shift` `Tab` | Indent / outdent in the editor | | `?` | All shortcuts |
+| `Alt` `F` | Check & fix LaTeX | | `Alt` `B` | Studio Workbench |
+| `Alt` `N` | New document tab | | `Alt` `R` | Editor / Tools |
 | `Esc` | Close a menu, leave the editor | | | |
 
 `Alt` is `⌥ Option` on a Mac.
