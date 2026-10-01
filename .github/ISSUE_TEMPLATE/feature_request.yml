@@ -1,0 +1,28 @@
+name: Feature request
+description: Suggest a cleanup rule, a delimiter mode, or a workflow improvement.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The friction
+      description: What are you fixing by hand today, and how often?
+    validations:
+      required: true
+
+  - type: textarea
+    id: example
+    attributes:
+      label: A concrete before / after
+      description: Messy input, and the LaTeX you wish you got back.
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: risk
+    attributes:
+      label: When should this rule NOT fire?
+      description: |
+        Every cleanup rule can misfire. Knowing the cases where your rule would
+        rewrite correct maths is what makes it safe to ship.

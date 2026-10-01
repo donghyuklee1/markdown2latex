@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-ink-950 text-slate-300 antialiased;
+  }
+
+  ::selection {
+    @apply bg-accent/25 text-white;
+  }
+}
+
+@layer components {
+  /* Slim scrollbars: the panes are dense enough already. */
+  .scroll-slim {
+    scrollbar-width: thin;
+    scrollbar-color: #2b3442 transparent;
+  }
+
+  .scroll-slim::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  .scroll-slim::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scroll-slim::-webkit-scrollbar-thumb {
+    @apply rounded-full border-[3px] border-solid border-transparent bg-ink-600 bg-clip-content;
+  }
+}
+
+/* --- KaTeX: inherit our palette instead of its own black-on-white ---------- */
+
+.katex {
+  color: inherit;
+  font-size: 1.06em;
+}
+
+/* Long equations scroll inside their own block rather than widening the pane. */
+.katex-display {
+  margin: 0.6rem 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.15rem 0 0.35rem;
+}
+
+.katex-display > .katex {
+  text-align: left;
+}

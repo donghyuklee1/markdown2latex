@@ -1,0 +1,61 @@
+{
+  "name": "markdown2latex",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CleanMath - paste messy LLM math, get compilation-ready LaTeX. Normalizes delimiters, repairs align environments, wraps stray prose in \\text{}. 100% client-side.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint --max-warnings=0",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx tests/cleaner.spec.ts",
+    "examples": "tsx scripts/generate-examples.ts",
+    "verify": "npm run lint && npm run typecheck && npm run test && npm run build"
+  },
+  "dependencies": {
+    "katex": "0.16.11",
+    "lucide-react": "0.441.0",
+    "next": "14.2.15",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-katex": "3.0.1"
+  },
+  "devDependencies": {
+    "@types/katex": "0.16.7",
+    "@types/node": "20.16.10",
+    "@types/react": "18.3.11",
+    "@types/react-dom": "18.3.0",
+    "autoprefixer": "10.4.20",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^14.2.15",
+    "postcss": "8.4.47",
+    "tailwindcss": "3.4.13",
+    "tsx": "4.19.1",
+    "typescript": "5.6.2"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/donghyuklee1/markdown2latex",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/donghyuklee1/markdown2latex.git"
+  },
+  "bugs": {
+    "url": "https://github.com/donghyuklee1/markdown2latex/issues"
+  },
+  "keywords": [
+    "latex",
+    "katex",
+    "overleaf",
+    "obsidian",
+    "markdown",
+    "math",
+    "llm",
+    "chatgpt",
+    "claude",
+    "nextjs"
+  ],
+  "engines": {
+    "node": ">=18.17"
+  }
+}

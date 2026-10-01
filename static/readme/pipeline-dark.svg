@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="212" viewBox="0 0 1040 212" role="img"
+     aria-label="CleanMath pipeline: messy LLM text is normalized, tokenized into prose and math, each math block is cleaned and re-emitted, producing compilation-ready LaTeX. Every step runs in the browser tab.">
+  <style>
+    .box { fill: #10141c; stroke: #2b3442; stroke-width: 1.5; }
+    .io { fill: #0f766e; fill-opacity: 0.14; stroke: #5eead4; stroke-opacity: 0.45; stroke-width: 1.5; }
+    .t { font-family: ui-sans-serif,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif; font-size: 14px; font-weight: 600; fill: #e2e8f0; }
+    .s { font-family: ui-monospace,SFMono-Regular,Menlo,monospace; font-size: 11px; fill: #64748b; }
+    .a { font-family: ui-monospace,SFMono-Regular,Menlo,monospace; font-size: 11.5px; fill: #5eead4; }
+    .arrow { stroke: #2b3442; stroke-width: 1.5; fill: none; }
+    .note { font-family: ui-sans-serif,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif; font-size: 12px; fill: #64748b; }
+  </style>
+  <defs>
+    <marker id="head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#2b3442"/>
+    </marker>
+  </defs>
+
+  <rect class="io" x="8" y="44" width="150" height="76" rx="12"/>
+  <text class="t" x="83" y="76" text-anchor="middle">Messy LLM text</text>
+  <text class="s" x="83" y="96" text-anchor="middle">\[ \] $$ \( \) align</text>
+
+  <path class="arrow" d="M162 82 H196" marker-end="url(#head)"/>
+
+  <rect class="box" x="200" y="44" width="178" height="76" rx="12"/>
+  <text class="t" x="289" y="70" text-anchor="middle">normalizeUnicode</text>
+  <text class="s" x="289" y="89" text-anchor="middle">strip ZWSP, NBSP,</text>
+  <text class="s" x="289" y="103" text-anchor="middle">smart quotes</text>
+
+  <path class="arrow" d="M382 82 H416" marker-end="url(#head)"/>
+
+  <rect class="box" x="420" y="44" width="178" height="76" rx="12"/>
+  <text class="t" x="509" y="70" text-anchor="middle">tokenize</text>
+  <text class="s" x="509" y="89" text-anchor="middle">prose vs math,</text>
+  <text class="s" x="509" y="103" text-anchor="middle">records unclosed spans</text>
+
+  <path class="arrow" d="M602 82 H636" marker-end="url(#head)"/>
+
+  <rect class="box" x="640" y="44" width="200" height="76" rx="12"/>
+  <text class="t" x="740" y="70" text-anchor="middle">clean + re-emit</text>
+  <text class="s" x="740" y="89" text-anchor="middle">unicode math, \text{},</text>
+  <text class="s" x="740" y="103" text-anchor="middle">rows, delimiter mode</text>
+
+  <path class="arrow" d="M844 82 H878" marker-end="url(#head)"/>
+
+  <rect class="io" x="882" y="44" width="150" height="76" rx="12"/>
+  <text class="t" x="957" y="76" text-anchor="middle">Clean LaTeX</text>
+  <text class="s" x="957" y="96" text-anchor="middle">compiles as pasted</text>
+
+  <rect x="200" y="148" width="640" height="40" rx="10" fill="#10141c" stroke="#2b3442" stroke-width="1.5" stroke-dasharray="4 4"/>
+  <text class="a" x="520" y="167" text-anchor="middle">Issue[] { line, severity, message }</text>
+  <text class="note" x="520" y="182" text-anchor="middle">unterminated delimiters are reported, never thrown - the preview keeps rendering</text>
+
+  <path class="arrow" d="M509 124 V146" marker-end="url(#head)" stroke-dasharray="3 3"/>
+  <text class="note" x="20" y="20">Every step runs synchronously in the browser tab. No network, no server, nothing logged.</text>
+</svg>

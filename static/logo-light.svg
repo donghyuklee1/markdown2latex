@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="440" height="104" viewBox="0 0 440 104" role="img" aria-label="CleanMath - markdown2latex">
+  <rect x="10" y="22" width="60" height="60" rx="15" fill="#5eead4" fill-opacity="0.12" stroke="#5eead4" stroke-opacity="0.35" stroke-width="1.5"/>
+  <path d="M52 37H29l16 15-16 15h23" fill="none" stroke="#5eead4" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="88" y="56" font-family="ui-sans-serif,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="32" font-weight="700" fill="#0f172a" letter-spacing="-0.8">CleanMath</text>
+  <text x="89" y="77" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="13" fill="#64748b">markdown2latex</text>
+</svg>

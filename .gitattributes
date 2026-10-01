@@ -1,0 +1,9 @@
+* text=auto eol=lf
+
+*.png binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+
+# Lockfile churn is noise in review.
+package-lock.json linguist-generated=true -diff

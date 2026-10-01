@@ -1,0 +1,69 @@
+# AGENTS.md
+
+Instructions for coding agents working in this repository. Humans should read
+[`.github/CONTRIBUTING.md`](.github/CONTRIBUTING.md) and
+[`docs/ENGINE.md`](docs/ENGINE.md) instead - they cover the same ground in more
+depth.
+
+## What this project is
+
+CleanMath turns messy LLM-generated math into LaTeX that compiles on the first
+try. Next.js 14 App Router, single static page, Tailwind, KaTeX. There is no
+backend and there must never be one: no route handlers, no server actions, no
+`fetch`. Privacy is a product feature, not an implementation detail.
+
+## Commands
+
+```bash
+npm install
+npm run dev        # http://localhost:3000
+npm run verify     # lint + typecheck + test + build  <- run this before finishing
+npm test           # engine conformance + KaTeX render checks
+npm run examples   # regenerate examples/ (commit the diff)
+```
+
+`npm run verify` is the gate. CI runs the same steps and additionally fails if
+`examples/` is stale.
+
+## Architecture
+
+| Path | Role |
+| --- | --- |
+| `src/lib/cleaner.ts` | The engine. Pure, synchronous, no DOM, no React, no I/O. |
+| `src/lib/highlight.ts` | LaTeX highlighter for the output pane. Escapes before it wraps. |
+| `src/lib/defaultText.ts` | Sample inputs, also the fixtures for tests and examples. |
+| `src/components/*` | All client components. Browser APIs belong here, never in `lib/`. |
+| `tests/cleaner.spec.ts` | Plain-node checks, run with `tsx`. No test framework. |
+
+The purity of `cleaner.ts` is load-bearing: it is what lets the engine run on
+every keystroke and be tested without a browser. If a change seems to need a
+browser API in the engine, the design is wrong.
+
+## Rules specific to this codebase
+
+1. **Non-ASCII characters in `src/lib/` are written as `\uXXXX` escapes or built
+   with `String.fromCharCode`.** Never paste a literal zero-width space, NBSP or
+   Greek letter into the engine. Half this project's job is hunting invisible
+   codepoints; they must stay greppable and must survive any copy-paste.
+
+2. **Never weaken the two invariants.** Idempotence
+   (`cleanMath(cleanMath(x)) === cleanMath(x)`) and "every example renders in
+   KaTeX across all three modes" are both asserted in `tests/cleaner.spec.ts`.
+
+3. **A new cleanup rule needs two tests**: one that fails without the rule, and
+   one pinning down an input where it must *not* fire. The second matters more.
+   `(y_i - f(x_i))^2` must never be wrapped in `\text{}`. If a rule cannot be made
+   safe by default, put it behind a flag in `ConfigOptions`.
+
+4. **Errors are reported, never thrown.** The tokenizer degrades an unterminated
+   delimiter to literal text and records an `Issue`. A malformed input must still
+   produce output and a rendering preview - the user is usually mid-keystroke.
+
+5. **`dangerouslySetInnerHTML` is used in exactly one place** (the output pane,
+   fed by `highlightLine`). Anything reaching it must be HTML-escaped first. Do
+   not add a second such call.
+
+## Before finishing
+
+Run `npm run verify`. If you changed engine behaviour, also run `npm run examples`
+and commit the resulting diff - it is the human-readable record of what changed.

@@ -1,0 +1,62 @@
+name: Bug report
+description: CleanMath mangled some math, or produced LaTeX that will not compile.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The input that broke it is the single most useful thing you can give us.
+        Paste it verbatim, including any invisible characters - do not retype it.
+
+  - type: textarea
+    id: input
+    attributes:
+      label: Input
+      description: The exact text you pasted into the left pane.
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What CleanMath produced
+      render: latex
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      render: latex
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Delimiter mode
+      options: [Standard, Academic, Inline-only]
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: toggles
+    attributes:
+      label: Toggles that were on
+      options:
+        - label: "Auto \\text{}"
+        - label: Fix row breaks
+
+  - type: input
+    id: target
+    attributes:
+      label: Where the output was going
+      placeholder: Overleaf / Obsidian / Notion / pdflatex / ...
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and OS
+      placeholder: Chrome 131 on macOS 15
