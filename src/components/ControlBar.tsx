@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Blocks, CheckCircle2, Languages, WrapText } from "lucide-react";
+import { AlertTriangle, Blocks, CheckCircle2, Languages, Space, WrapText } from "lucide-react";
 import { DELIMITER_MODES, type ConfigOptions, type DelimiterMode, type Issue } from "@/lib/cleaner";
 
 interface Props {
@@ -99,6 +99,13 @@ export default function ControlBar({ options, onChange, blocks, issues }: Props)
         checked={options.fixLineBreaks}
         onChange={(v) => set({ fixLineBreaks: v })}
         icon={WrapText}
+      />
+      <Toggle
+        label="Smart spacing"
+        hint="Recognise spacing LaTeX gets wrong: \, before dx in integrals, upright \sin / \log, spaces inside \text{} where it meets maths, and single spaces around + - =."
+        checked={options.smartSpacing}
+        onChange={(v) => set({ smartSpacing: v })}
+        icon={Space}
       />
 
       <div className="ml-auto flex items-center gap-3 pr-1 text-xs">

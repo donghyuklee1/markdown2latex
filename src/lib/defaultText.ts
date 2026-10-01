@@ -76,6 +76,22 @@ and the bias term is \( b = \mathbb{E}[\hat{\theta}] - \theta
 
 which should have closed properly.`;
 
+/**
+ * Spacing and escaping damage: bare `sin`, a differential with no thin space,
+ * `\text{}` glued to its neighbours, Python `**`, unicode super/subscripts and
+ * a JSON-escaped `\\frac`.
+ */
+const SPACING = String.raw`The Gaussian integral, as a chatbot typed it:
+$$
+\int_{-\infty}^{\infty} e^{-x**2} dx=${"\u221A"}${"\u03C0"}
+$$
+Pythagoras holds for all $x${"\u2208\u211D"}$: $sin(x)${"\u00B2"}+cos(x)${"\u00B2"}=1$.
+
+A piecewise definition pasted from JSON:
+$$
+f(x) = \\frac{1}{x} \text{if} x>0, \quad x\_0=1
+$$`;
+
 export const EXAMPLES: ReadonlyArray<Example> = [
   {
     id: "llm-classic",
@@ -100,6 +116,12 @@ export const EXAMPLES: ReadonlyArray<Example> = [
     label: "Truncated answer",
     blurb: "Unclosed $$ and \\( - see the safety net catch them",
     text: BROKEN,
+  },
+  {
+    id: "spacing",
+    label: "Spacing + escapes",
+    blurb: "Bare sin, dx with no thin space, glued \\text{}, x**2 and JSON-escaped \\\\frac",
+    text: SPACING,
   },
 ];
 

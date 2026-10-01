@@ -28,7 +28,7 @@ $$
 ```latex
 정규분포의 확률밀도함수는 다음과 같습니다:
 $$
-p(x) = \frac{1}{\sqrt{2\pi\sigma^2}} \exp\left(-\frac{(x-\mu)^2}{2\sigma^2}\right)
+p(x) = \frac{1}{\sqrt{2\pi\sigma^2}} \exp\left(-\frac{(x - \mu)^2}{2\sigma^2}\right)
 $$
 여기서 $\mu$ 는 평균, $\sigma$ 는 표준편차입니다.
 
@@ -49,7 +49,7 @@ _6 math block(s) normalized, no issues._
 ```latex
 정규분포의 확률밀도함수는 다음과 같습니다:
 \begin{equation*}
-p(x) = \frac{1}{\sqrt{2\pi\sigma^2}} \exp\left(-\frac{(x-\mu)^2}{2\sigma^2}\right)
+p(x) = \frac{1}{\sqrt{2\pi\sigma^2}} \exp\left(-\frac{(x - \mu)^2}{2\sigma^2}\right)
 \end{equation*}
 여기서 $\mu$ 는 평균, $\sigma$ 는 표준편차입니다.
 
@@ -69,7 +69,7 @@ _6 math block(s) normalized, no issues._
 
 ```latex
 정규분포의 확률밀도함수는 다음과 같습니다:
-$p(x) = \frac{1}{\sqrt{2\pi\sigma^2}} \exp\left(-\frac{(x-\mu)^2}{2\sigma^2}\right)$
+$p(x) = \frac{1}{\sqrt{2\pi\sigma^2}} \exp\left(-\frac{(x - \mu)^2}{2\sigma^2}\right)$
 여기서 $\mu$ 는 평균, $\sigma$ 는 표준편차입니다.
 
 교차 엔트로피 손실:

@@ -22,6 +22,7 @@ export const EDITABLE_TOKENS = [
   { id: "text", label: "Text", hint: "Primary foreground" },
   { id: "muted", label: "Muted text", hint: "Labels, counts, hints" },
   { id: "accent", label: "Accent", hint: "The orange from the wordmark" },
+  { id: "math", label: "Preview math", hint: "Rendered equations in the Live Preview" },
 ] as const;
 
 export type EditableToken = (typeof EDITABLE_TOKENS)[number]["id"];

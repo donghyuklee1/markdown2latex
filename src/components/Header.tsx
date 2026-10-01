@@ -1,10 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ShieldCheck, Star } from "lucide-react";
+import { Coffee, ShieldCheck, Star } from "lucide-react";
 import PalettePicker from "./PalettePicker";
 import ThemeToggle from "./ThemeToggle";
 
 export const GITHUB_URL = "https://github.com/donghyuklee1/markdown2latex";
+/** Also declared in .github/FUNDING.yml, which puts a Sponsor button on the repo. */
+export const SPONSOR_URL = "https://github.com/sponsors/donghyuklee1";
 
 /** lucide-react v1 dropped brand marks, so the GitHub octicon is inlined. */
 function GithubMark({ size = 14 }: { size?: number }) {
@@ -41,12 +43,7 @@ function Wordmark() {
 export default function Header() {
   return (
     <header className="themed flex shrink-0 items-center gap-4 border-b border-border px-4 py-3 sm:px-6">
-      <div className="flex min-w-0 items-center gap-4">
-        <Wordmark />
-        <p className="hidden truncate font-serif text-[13px] italic text-muted lg:block">
-          Messy LLM math in. Compilation-ready LaTeX out.
-        </p>
-      </div>
+      <Wordmark />
 
       <div className="ml-auto flex items-center gap-2">
         <span
@@ -68,6 +65,17 @@ export default function Header() {
           <span className="flex items-center rounded bg-surface-2 px-1.5 py-0.5 text-faint transition-colors group-hover:bg-accent/15 group-hover:text-accent">
             <Star size={11} strokeWidth={2.5} />
           </span>
+        </a>
+
+        <a
+          href={SPONSOR_URL}
+          target="_blank"
+          rel="noreferrer noopener"
+          title="Buy the developer a coffee on GitHub Sponsors"
+          className="flex h-8 items-center gap-1.5 rounded-lg border border-accent/40 bg-accent/10 px-2.5 text-xs font-semibold text-accent transition-colors hover:border-accent hover:bg-accent hover:text-accent-ink"
+        >
+          <Coffee size={14} strokeWidth={2.25} />
+          <span className="hidden sm:inline">Buy me a coffee</span>
         </a>
 
         <ThemeToggle />

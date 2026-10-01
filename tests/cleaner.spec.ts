@@ -94,9 +94,21 @@ check(
 /* --- row repair ---------------------------------------------------------- */
 
 check(
-  "matrix rows get row breaks but no & anchor",
+  "matrix rows get row breaks but no & anchor, and keep their math mode",
   cleanMath("$$\n\\begin{pmatrix}\na & b\nc & d\n\\end{pmatrix}\n$$", opts()),
-  "\\begin{pmatrix}\na & b \\\\\nc & d\n\\end{pmatrix}",
+  "$$\n\\begin{pmatrix}\na & b \\\\\nc & d\n\\end{pmatrix}\n$$",
+);
+
+check(
+  "a block holding several environments is not mistaken for one",
+  cleanMath("$$\n\\begin{pmatrix}\na & b\nc & d\n\\end{pmatrix}\n\\begin{pmatrix} x \\\\ y \\end{pmatrix}\n=\n\\begin{pmatrix} e \\\\ f \\end{pmatrix}\n$$", opts()),
+  "$$\n\\begin{pmatrix}\na & b \\\\\nc & d\n\\end{pmatrix}\n\\begin{pmatrix} x \\\\ y \\end{pmatrix}\n=\n\\begin{pmatrix} e \\\\ f \\end{pmatrix}\n$$",
+);
+
+check(
+  "a nested matrix does not promote academic mode to align*",
+  cleanMath("$$ A = \\begin{pmatrix} 1 \\\\ 2 \\end{pmatrix} $$", opts({ delimiterMode: "academic" })),
+  "\\begin{equation*}\nA = \\begin{pmatrix} 1 \\\\ 2 \\end{pmatrix}\n\\end{equation*}",
 );
 
 check(
@@ -175,6 +187,106 @@ check(
   "$a + b$",
 );
 
+check(
+  "more unicode: blackboard bold, sqrt, super/subscript runs",
+  cleanMath("$x\u00b2\u00b3 + a\u2081\u2082 + \u221a(x+1) + \u221a2 + \u221a\u03c0 \u2208 \u211d$", opts()),
+  "$x^{23} + a_{12} + \\sqrt{x + 1} + \\sqrt{2} + \\sqrt{\\pi} \\in \\mathbb{R}$",
+);
+
+/* --- escape repair -------------------------------------------------------- */
+
+check(
+  "JSON double escapes are undone for known commands",
+  cleanMath("$\\\\frac{a}{b} + \\\\alpha$", opts()),
+  "$\\frac{a}{b} + \\alpha$",
+);
+
+check(
+  "a real row break is never mistaken for a double escape",
+  cleanMath("\\begin{align}\na &= 1 \\\\\\text{b} &= 2\n\\end{align}", opts({ smartSpacing: false })),
+  "\\begin{align*}\na &= 1 \\\\\\text{b} &= 2\n\\end{align*}",
+);
+
+check(
+  "markdown-escaped subscripts are unescaped in math",
+  cleanMath("$x\\_1 + x\\_2$", opts()),
+  "$x_1 + x_2$",
+);
+
+check(
+  "escaped underscore inside \\text{} is left alone",
+  cleanMath("$\\text{file\\_name}$", opts()),
+  "$\\text{file\\_name}$",
+);
+
+check(
+  "python ** becomes a braced superscript",
+  cleanMath("$x**2 + y**(n+1)$", opts()),
+  "$x^{2} + y^{n+1}$",
+);
+
+/* --- smart spacing --------------------------------------------------------- */
+
+check(
+  "integral differentials get a thin space",
+  cleanMath("$\\int_0^1 f(x) dx + \\int x^2 dx dy + \\int_0^{2\\pi} d\\theta$", opts()),
+  "$\\int_0^1 f(x)\\,dx + \\int x^2\\,dx\\,dy + \\int_0^{2\\pi}\\,d\\theta$",
+);
+
+check(
+  "derivatives and words are not treated as differentials",
+  cleanMath("$\\int \\frac{dy}{dx} dx + \\frac{d}{dx} f + x add y$", opts()),
+  "$\\int \\frac{dy}{dx}\\,dx + \\frac{d}{dx} f + x add y$",
+);
+
+check(
+  "bare function names become upright commands",
+  cleanMath("$sin(x)^2+cos(x)^2=1, 2log x$", opts()),
+  "$\\sin(x)^2 + \\cos(x)^2 = 1, 2\\log x$",
+);
+
+check(
+  "function names inside words, scripts and \\mathrm stay put",
+  cleanMath("$x_{max} + argmax + \\mathrm{log} + \\max_i a_i$", opts()),
+  "$x_{max} + argmax + \\mathrm{log} + \\max_i a_i$",
+);
+
+check(
+  "\\text{} gets inner spaces where it touches maths",
+  cleanMath("$f(x) = x \\text{for all} x, \\quad y \\text{if} y > 0$", opts()),
+  "$f(x) = x \\text{ for all } x, \\quad y \\text{ if } y > 0$",
+);
+
+check(
+  "\\text{} after a relation keeps its spacing as written",
+  cleanMath("$a = \\text{yes}$", opts()),
+  "$a = \\text{yes}$",
+);
+
+check(
+  "binary operators get single spaces",
+  cleanMath("$a+  b=c, \\alpha-1, x=-1$", opts()),
+  "$a + b = c, \\alpha - 1, x = -1$",
+);
+
+check(
+  "unary signs, scripts, labels and compound operators are untouched",
+  cleanMath("$(-1)^n + e^{-x} + x_{i+1} + x^-1, a<=b, c:=d, \\label{eq:a-b}$", opts()),
+  "$(-1)^n + e^{-x} + x_{i+1} + x^-1, a<=b, c:=d, \\label{eq:a-b}$",
+);
+
+check(
+  "spacing works with align anchors",
+  cleanMath("\\begin{align}\na=b+c\nd=e-f\n\\end{align}", opts()),
+  "\\begin{align*}\na &= b + c \\\\\nd &= e - f\n\\end{align*}",
+);
+
+check(
+  "smart spacing off leaves spacing as written",
+  cleanMath("$\\int sin x dx, a+b$", opts({ smartSpacing: false })),
+  "$\\int sin x dx, a+b$",
+);
+
 /* --- safety net ---------------------------------------------------------- */
 
 {
@@ -226,6 +338,17 @@ check(
   cleanMath(cleanMath(DEFAULT_TEXT, opts()), opts()),
   SPEC_EXPECTED,
 );
+
+{
+  const unstable: string[] = [];
+  for (const example of EXAMPLES) {
+    for (const mode of ["standard", "academic", "inline"] as const) {
+      const once = cleanMath(example.text, opts({ delimiterMode: mode }));
+      if (cleanMath(once, opts({ delimiterMode: mode })) !== once) unstable.push(example.id + " [" + mode + "]");
+    }
+  }
+  check("idempotent across every example and mode", unstable.join(", ") || "none", "none");
+}
 
 /* ------------------------------------------------------------------------- */
 

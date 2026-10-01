@@ -8,6 +8,7 @@
 <a href="https://github.com/donghyuklee1/markdown2latex/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/donghyuklee1/markdown2latex/ci.yml?branch=main&label=CI&style=flat-square" alt="CI status"></a>
 <a href="LICENSE"><img src="https://img.shields.io/github/license/donghyuklee1/markdown2latex?style=flat-square&color=5eead4" alt="MIT license"></a>
 <a href="package.json"><img src="https://img.shields.io/badge/Next.js-16-000?style=flat-square&logo=nextdotjs" alt="Next.js 16"></a>
+<a href="https://github.com/sponsors/donghyuklee1"><img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-Sponsor-ff751f?style=flat-square&logo=githubsponsors&logoColor=white" alt="Buy me a coffee on GitHub Sponsors"></a>
 
 ---
 
@@ -109,13 +110,19 @@ docker build -t cleanmath . && docker run -p 3000:3000 cleanmath
 | --- | --- |
 | `\[ ... \]` display delimiters | Converted to your chosen display style |
 | `\( ... \)` inline delimiters | Converted to `$ ... $` |
-| `$$` wrapped around an `align` / `equation` | Outer delimiter stripped - the usual Overleaf compile error |
+| `$$` wrapped around an `align` / `equation` | Outer delimiter stripped - the usual Overleaf compile error. `pmatrix`, `cases` and `aligned` keep theirs: they need math mode |
 | `\begin{align}` auto-numbering your paper | Starred to `align*` |
 | Rows missing their `\\` terminator | Added, to every row but the last |
 | Align rows missing their `&` anchor | Inserted before the first top-level `=` |
 | Prose sitting bare inside math | Wrapped in `\text{...}`, Hangul included |
 | Zero-width spaces, NBSP, smart quotes | Removed or replaced |
-| Unicode `<=`, Greek letters, operators | Converted to real commands |
+| Unicode `<=`, Greek letters, operators | Converted to real commands - about 110 glyphs |
+| Unicode `x²`, `a₁₂`, `√(x+1)`, `ℝ` | `x^{2}`, `a_{12}`, `\sqrt{x+1}`, `\mathbb{R}` |
+| JSON-escaped `\\frac`, markdown-escaped `x\_1`, Python `x**2` | `\frac`, `x_1`, `x^{2}` |
+| `\int f(x) dx` with no thin space | `\int f(x)\,dx` |
+| Bare `sin x`, `log n`, `max` | Upright `\sin x`, `\log n`, `\max` |
+| `x \text{if} y` rendering as "xify" | `x \text{ if } y` |
+| `a+  b=c` | `a + b = c` - unary minus, scripts and labels untouched |
 | An unclosed `$` or `$$` | Reported on the exact line - never crashes the preview |
 
 ## Delimiter modes
@@ -126,8 +133,9 @@ docker build -t cleanmath . && docker run -p 3000:3000 cleanmath
 | **Academic** | `\begin{equation*}` / `\begin{align*}` | Overleaf, paper drafts |
 | **Inline-only** | collapsed to `$ ... $` | Chat, code comments, commit messages |
 
-Existing environments stay bare in every mode - wrapping them is what broke the
-snippet in the first place. Your mode and toggles persist in `localStorage`.
+Existing display environments (`align`, `equation`, `gather`, ...) stay bare in
+every mode - wrapping them is what broke the snippet in the first place. The
+four spacing fixes above sit behind the **Smart spacing** toggle. Your mode and toggles persist in `localStorage`.
 
 ## Shortcuts
 
@@ -206,6 +214,12 @@ content`, and `src/` contains no `fetch` of any kind.
 - [ ] Table conversion: markdown tables to `tabular`
 - [ ] More target presets: Typst, MathJax v2, Quarto
 - [ ] Browser extension: clean on copy, straight from the chat window
+
+## Support
+
+If CleanMath saves you a round of Overleaf errors, you can
+[buy the developer a coffee](https://github.com/sponsors/donghyuklee1) on GitHub
+Sponsors.
 
 ## Contributing
 

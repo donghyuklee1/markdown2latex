@@ -37,14 +37,15 @@ $$
 $$
 
 Matrix form:
+$$
 \begin{pmatrix}
 a & b \\
-c & d \\
+c & d
 \end{pmatrix}
 \begin{pmatrix} x \\ y \end{pmatrix}
-= \\
-\begin{pmatrix} e \\ f
-\end{pmatrix}
+=
+\begin{pmatrix} e \\ f \end{pmatrix}
+$$
 ```
 
 _4 math block(s) normalized, no issues._
@@ -62,14 +63,15 @@ Convergence requires:
 \end{equation*}
 
 Matrix form:
+\begin{equation*}
 \begin{pmatrix}
 a & b \\
-c & d \\
+c & d
 \end{pmatrix}
 \begin{pmatrix} x \\ y \end{pmatrix}
-= \\
-\begin{pmatrix} e \\ f
-\end{pmatrix}
+=
+\begin{pmatrix} e \\ f \end{pmatrix}
+\end{equation*}
 ```
 
 _4 math block(s) normalized, no issues._
@@ -85,14 +87,7 @@ Convergence requires:
 $\|x_{k+1} - x^*\| \le \rho \cdot \|x_k - x^*\|, \quad 0 < \rho < 1$
 
 Matrix form:
-\begin{pmatrix}
-a & b \\
-c & d \\
-\end{pmatrix}
-\begin{pmatrix} x \\ y \end{pmatrix}
-= \\
-\begin{pmatrix} e \\ f
-\end{pmatrix}
+$\begin{pmatrix} a & b \\ c & d \end{pmatrix} \begin{pmatrix} x \\ y \end{pmatrix} = \begin{pmatrix} e \\ f \end{pmatrix}$
 ```
 
 _4 math block(s) normalized, no issues._

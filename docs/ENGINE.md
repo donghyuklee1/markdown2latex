@@ -67,7 +67,15 @@ Without it, a single stray `$` would consume the remainder of the document.
 Applied to math payloads only, so prose keeps its own typography:
 
 - **Unicode math to commands.** `<=` becomes `\leq`, Greek letters become
-  `\alpha`, and so on - about 60 glyphs. The table is keyed by hex codepoint.
+  `\alpha`, `ℝ` becomes `\mathbb{R}`, and so on - about 110 glyphs. The table is
+  keyed by hex codepoint. Runs of super/subscript glyphs become one group
+  (`x²³` -> `x^{23}`, never the double-superscript `x^{2}^{3}`), and `√` carries
+  its operand into braces (`√(x+1)` -> `\sqrt{x+1}`).
+- **Escape repair.** `\\frac` from a JSON-escaped string becomes `\frac` - only
+  for a list of known commands, and never when the pair is itself preceded by a
+  backslash, so a real row break before `\text` survives. Markdown's `x\_1`
+  becomes `x_1` outside `\text{}`. Python's `x**2` becomes `x^{2}` when the
+  exponent is one clear atom, a `{...}` group or a `(...)` group.
 - **`\text{}` auto-escaping** (toggle). Prose inside math is wrapped so it
   typesets as words rather than a product of variables.
 
@@ -82,16 +90,47 @@ is never mistaken for an English word. Then only two things are wrapped:
   `(n)` do not.
 - A run of two or more consecutive plain words, or a run of Hangul.
 
-A single symbol is never wrapped. Neither is anything containing an operator.
+A single symbol is never wrapped. Neither is anything containing an operator, nor
+a run made only of differentials (`dx dy`).
 When in doubt the pass does nothing, because leaving `(n)` alone costs the user a
 keystroke while wrapping `(a + b)` costs them a wrong equation.
+
+### Smart spacing (toggle)
+
+TeX ignores spaces in math mode, so the author's spacing intent is lost unless it
+is written as LaTeX. This pass recognises four cases:
+
+- **Differentials.** In a block containing `\int`, `\iint`, `\iiint` or `\oint`, a
+  `d` plus one variable (or a Greek command) gets a thin space: `f(x) dx` ->
+  `f(x)\,dx`, `dx dy` -> `\,dx\,dy`. It needs a space after an operand, or a
+  closing bracket or digit right before it, so `\frac{dy}{dx}` and `add` never
+  qualify, and an existing `\,dx` is left alone.
+- **Function names.** Bare `sin`, `log`, `max`, ... become `\sin`, `\log`,
+  `\max`, which TeX sets upright with operator spacing. Not inside a longer word
+  (`argmax`), not after a script marker (`x_{max}` is a label) and not inside
+  `\mathrm{}` or `\text{}`.
+- **`\text{}` edges.** `x \text{if} y` renders as "xify". Where the group touches
+  an operand, a space goes inside it: `x \text{ if } y`. Next to a relation or
+  `\quad` nothing is added - the spacing is already there.
+- **Operator tidy.** Source spacing around binary `+ - = < >` becomes exactly one
+  space. A small per-line tokenizer tracks braces, so `x_{i+1}` and `e^{-x}` are
+  untouched, `-` after a non-operand stays a unary sign (`= -1`, `(-1)`), opaque
+  arguments (`\label{a-b}`, `\text{well-known}`) are never entered, and
+  compound operators (`<=`, `:=`, `->`) stay glued. `&=` keeps its anchor
+  attached. This one only changes how the LaTeX reads, not how it renders.
 
 ## 4. Re-emission
 
 `detectEnvWrapper` first checks whether a display block is *exactly* one
-`\begin{...}...\end{...}`. If so the outer `$$` or `\[` is dropped. Nesting a
-display delimiter around an `align` is the most common compile error in LLM
-output, and it is the one fix most worth having.
+`\begin{...}...\end{...}` - by depth-matching the first `\begin`, so
+`\begin{pmatrix}..\end{pmatrix} = \begin{pmatrix}..\end{pmatrix}` is correctly
+seen as three things. If the environment is display math itself (`align`,
+`equation`, `gather`, `multline`, ...), the outer `$$` or `\[` is dropped.
+Nesting a display delimiter around an `align` is the most common compile error in
+LLM output, and it is the one fix most worth having.
+
+Environments that only work *inside* math mode - `pmatrix`, `cases`, `aligned`,
+`array` - keep their delimiters. Stripping those is the opposite compile error.
 
 Numbered environments are starred (`align` -> `align*`, `equation` ->
 `equation*`), because a snippet pasted into the middle of a paper should not
@@ -101,6 +140,8 @@ silently renumber the author's own equations.
 
 Inside row-based environments:
 
+- Matrices and other row environments nested inside a larger display block are
+  repaired too.
 - Every row but the last gets a `\\` terminator, unless it already ends in one,
   in an `&`, in an open brace, or in a structural command.
 - In align-like environments only, a row with no `&` gets one inserted before its

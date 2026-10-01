@@ -5,6 +5,7 @@ import { BlockMath, InlineMath } from "./Katex";
 import { Code2, Eye, TriangleAlert } from "lucide-react";
 import { prepareForKatex, segment } from "@/lib/cleaner";
 import { highlightLine } from "@/lib/highlight";
+import MathColorPicker from "./MathColorPicker";
 
 interface Props {
   output: string;
@@ -49,7 +50,7 @@ function PreviewView({ output }: { output: string }) {
   const segments = useMemo(() => segment(output), [output]);
 
   return (
-    <div className="scroll-slim h-full overflow-auto px-4 py-3 text-[15px] leading-relaxed text-muted">
+    <div className="math-preview scroll-slim h-full overflow-auto px-4 py-3 text-[15px] leading-relaxed text-muted">
       {segments.map((seg, idx) => {
         if (seg.type === "text") {
           // Markdown prose is shown as-is; CleanMath formats math, it does not
@@ -115,6 +116,7 @@ export default function MathOutput({ output }: Props) {
             {label}
           </button>
         ))}
+        {tab === "preview" && <MathColorPicker />}
       </div>
 
       <div className="min-h-0 flex-1">
