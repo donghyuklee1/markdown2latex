@@ -344,10 +344,10 @@ html[data-resizing="y"] * {
   background: rgb(var(--surface));
   color: rgb(var(--text));
 }
-/* Maths takes the paper's ink, not the preview colour picker. */
+/* Maths takes the colour picked with the preview swatches, or the paper's ink. */
 .paper .katex,
 .math-preview .paper .katex {
-  color: inherit;
+  color: var(--paper-math, inherit);
   font-size: 1.04em;
 }
 .paper .katex-display {
@@ -603,4 +603,50 @@ html[data-resizing="y"] * {
 .paper-cols-2 .paper-theorem,
 .paper-cols-2 .paper-float {
   break-inside: avoid;
+}
+
+/* --- Paper preview: printing / Save as PDF ----------------------------------
+ * Chrome cannot split a scrolling box across pages, and "keep together" on a
+ * tall table pushes it whole onto the next page, leaving a blank one behind.
+ * In print the sheet flows freely: tables may break between rows (never
+ * inside one), captions stay with their table, equations stay whole. */
+@media print {
+  html,
+  body {
+    background: #fff !important;
+  }
+  .paper-sheet {
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: none !important;
+    border-radius: 0 !important;
+    font-size: 10.5pt !important;
+    background: #fff !important;
+  }
+  .paper-sheet .paper-table-wrap,
+  .paper-sheet .katex-display {
+    overflow: visible !important;
+  }
+  .paper-sheet .paper-float {
+    break-inside: auto;
+  }
+  .paper-sheet .paper-float figcaption {
+    break-after: avoid;
+  }
+  .paper-sheet tr,
+  .paper-sheet .paper-math,
+  .paper-sheet .paper-figure-box {
+    break-inside: avoid;
+  }
+  .paper-sheet h2,
+  .paper-sheet h3,
+  .paper-sheet h4 {
+    break-after: avoid;
+  }
+  .paper-sheet [data-src]:hover,
+  .paper-sheet .paper-flash {
+    background: none !important;
+    animation: none !important;
+  }
 }

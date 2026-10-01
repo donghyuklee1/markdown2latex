@@ -1181,6 +1181,9 @@ const FUNCTION_WORDS = /\b(?:sin|cos|tan|log|ln|exp|max|min|arg|det|lim|sup|inf|
 function isMathyText(text: string): boolean {
   const s = text.trim();
   if (!s) return false;
+  // Table syntax is never formula: a cell separator, a row break, or an en dash
+  // (`--`) between spans means they sit in different cells or in prose.
+  if (/(?<!\\)&|\\\\|--/.test(s)) return false;
   // Anything outside printable ASCII - Hangul, CJK, accented letters - is prose.
   // (Written as a range of printable characters so no editor can "decode" it.)
   if (/[^ -~\s]/.test(s)) return false;

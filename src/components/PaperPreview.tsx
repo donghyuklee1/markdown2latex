@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Columns2, FileDown, Image as ImageIcon, ListTree, Moon, MousePointerClick, Square, Sun } from "lucide-react";
 import { renderPaper, refText, type Block, type Paper, type Row, type Run } from "@/lib/texRender";
 import { BlockMath, InlineMath } from "./Katex";
+import { getPaletteServerSnapshot, getPaletteSnapshot, getThemeServerSnapshot, getThemeSnapshot, subscribeToTheme } from "@/lib/theme";
 
 /**
  * Paper preview: a LaTeX document typeset like the PDF Overleaf would give you
@@ -318,14 +319,37 @@ function printSheet(sheet: HTMLElement, title: string) {
   doc.title = title;
   for (const node of Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))) doc.head.appendChild(doc.importNode(node, true));
   const style = doc.createElement("style");
+  // The margins are drawn into the document, not left to @page: side padding
+  // applies on every page, and a table's thead/tfoot repeat on every printed
+  // page in Chrome, giving top and bottom margins - so the PDF is the same even
+  // when the print dialog's "Margins" is set to None.
   style.textContent =
-    "@page{size:A4;margin:18mm}html,body{background:#fff!important;margin:0}.paper-sheet{box-shadow:none!important;margin:0!important;max-width:none!important;padding:0!important}" +
-    ".paper-sheet [data-src]:hover{background:none!important}";
+    "@page{size:A4;margin:0}html,body{background:#fff!important;margin:0;padding:0}" +
+    ".print-frame{width:100%;border-collapse:collapse}.print-frame td{padding:0}" +
+    ".print-frame .print-body{padding:0 18mm}.print-frame .print-gap{height:16mm}" +
+    "@media screen{.print-frame{max-width:210mm;margin:0 auto}}";
   doc.head.appendChild(style);
   doc.documentElement.dataset.theme = "light";
   const clone = doc.importNode(sheet, true) as HTMLElement;
   clone.classList.remove("paper-theme");
-  doc.body.appendChild(clone);
+  // Print at a paper's own size, not the on-screen zoom.
+  clone.style.fontSize = "";
+  const frame = doc.createElement("table");
+  frame.className = "print-frame";
+  const section = (tag: "thead" | "tbody" | "tfoot", cls: string, content?: HTMLElement) => {
+    const part = doc.createElement(tag);
+    const row = doc.createElement("tr");
+    const cell = doc.createElement("td");
+    cell.className = cls;
+    if (content) cell.appendChild(content);
+    row.appendChild(cell);
+    part.appendChild(row);
+    frame.appendChild(part);
+  };
+  section("thead", "print-gap");
+  section("tbody", "print-body", clone);
+  section("tfoot", "print-gap");
+  doc.body.appendChild(frame);
   const go = () => {
     win.focus();
     win.print();
@@ -344,6 +368,11 @@ export default function PaperPreview({ body, full, fontSize, onSource, scrollerR
   const [tocOpen, setTocOpen] = useState(false);
   const [hover, setHover] = useState<Hover>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
+  // The preview's equation colour (the swatches): applied when one is picked;
+  // "Ink" leaves the paper's own black, as in the PDF.
+  const theme = useSyncExternalStore(subscribeToTheme, getThemeSnapshot, getThemeServerSnapshot);
+  const palette = useSyncExternalStore(subscribeToTheme, getPaletteSnapshot, getPaletteServerSnapshot);
+  const mathColor = palette[theme]?.math ?? null;
 
   const jump = (id: string) => {
     const el = sheetRef.current?.querySelector<HTMLElement>("#" + CSS.escape(id));
@@ -434,7 +463,7 @@ export default function PaperPreview({ body, full, fontSize, onSource, scrollerR
       <div
         ref={sheetRef}
         className={"paper-sheet paper" + (cols === 2 ? " paper-cols-2" : "") + (ink === "theme" ? " paper-theme" : "")}
-        style={{ fontSize: fontSize + 2 }}
+        style={{ fontSize: fontSize + 2, ...(mathColor ? ({ "--paper-math": mathColor } as React.CSSProperties) : {}) }}
       >
         <BlocksView blocks={paper.blocks} paper={paper} onRef={onRef} onHover={setHover} onSource={onSource} />
         {paper.footnotes.length > 0 && (

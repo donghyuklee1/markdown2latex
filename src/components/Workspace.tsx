@@ -394,12 +394,19 @@ export default function Workspace() {
   /** Check & Fix: propose repairs so everything renders; nothing changes until Apply. */
   const checkFix = useCallback(() => {
     const result = repairLatex(input, macros);
+    // The badge counts problems in the *cleaned* output. One that only appears
+    // after cleaning has nothing to repair in the input, but it must still be
+    // shown here, so the button and the dialog always agree.
+    const listed = new Set([...result.fixes.map((f) => f.line), ...result.unresolved.map((u) => u.line)]);
+    for (const p of [...issues.map((i) => ({ line: i.line, message: i.message })), ...diagnostics]) {
+      if (!listed.has(p.line)) result.unresolved.push({ line: p.line, message: p.message + " (after cleaning)" });
+    }
     if (!result.fixes.length && !result.unresolved.length) {
       toast("Everything renders - nothing to fix", "success");
       return;
     }
     setRepair(result);
-  }, [input, toast, macros]);
+  }, [input, toast, macros, issues, diagnostics]);
 
   /* --- keyboard shortcuts ------------------------------------------------ */
   const run = useCallback(

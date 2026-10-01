@@ -24,6 +24,11 @@ check("Hangul in between is prose", c("여기서 $\\mu$ 는 평균, $\\sigma$ �
 check("a hyphenated word after a span is untouched", c("the $n$-dimensional space"), "the $n$-dimensional space");
 check("an operator alone is never absorbed", c("$E$ = energy"), "$E$ = energy");
 check("spans on different lines never merge", c("$a$ +\n$b$"), "$a$ +\n$b$");
+check(
+  "table cells are never merged across & or --",
+  c("$\\lambda_E$, $\\sigma_E$ & prior weight & $2\\cdot10^{-5}$, $0.04$ & --, $\\um$ \\\\"),
+  "$\\lambda_E$, $\\sigma_E$ & prior weight & $2\\cdot10^{-5}$, $0.04$ & --, $\\um$ \\\\",
+);
 check("merging is idempotent", c(c("$x$ = $y$ + z")), c("$x$ = $y$ + z"));
 check("bundled examples are unchanged by the rule", EXAMPLES.map((e) => String(c(e.text) === c(c(e.text)))).join(","), EXAMPLES.map(() => "true").join(","));
 finish("fragments");
