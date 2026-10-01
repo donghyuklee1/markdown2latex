@@ -20,10 +20,11 @@ import {
 import { prepareForKatex, segment } from "@/lib/cleaner";
 import { diffLines, type DiffLine } from "@/lib/diff";
 import { highlightLine } from "@/lib/highlight";
-import { documentParts, parseProse, type Block, type Inline } from "@/lib/texDocument";
+import { documentParts } from "@/lib/texDocument";
 import { OUTPUT_TABS, type OutputTab } from "@/lib/persistedStore";
 import BrandMark from "./BrandMark";
 import MathColorPicker from "./MathColorPicker";
+import PaperPreview from "./PaperPreview";
 import type { StudioContext } from "./studio/types";
 
 const FormulaGraph = lazy(() => import("./studio/FormulaGraph"));
@@ -91,90 +92,32 @@ function CodeView({ output, fontSize, wrap, scrollerRef }: { output: string; fon
   );
 }
 
-/* --- LaTeX-document preview --------------------------------------------- */
-
-function InlineRuns({ runs }: { runs: Inline[] }) {
-  return (
-    <>
-      {runs.map((r, i) =>
-        r.t === "text" ? (
-          <span key={i}>{r.v}</span>
-        ) : r.t === "b" ? (
-          <b key={i} className="font-semibold text-text"><InlineRuns runs={r.v} /></b>
-        ) : r.t === "i" ? (
-          <em key={i}><InlineRuns runs={r.v} /></em>
-        ) : r.t === "code" ? (
-          <code key={i} className="rounded bg-surface-2 px-1 font-mono text-[0.85em]"><InlineRuns runs={r.v} /></code>
-        ) : r.t === "small" ? (
-          <small key={i}><InlineRuns runs={r.v} /></small>
-        ) : r.t === "cite" ? (
-          <span key={i} className="text-accent" title={"\\cite{" + r.v + "}"}>[{r.v.split(",").map((k) => k.trim()).join(", ")}]</span>
-        ) : r.t === "ref" ? (
-          <span key={i} className="text-accent" title="cross-reference">{r.v}</span>
-        ) : r.t === "note" ? (
-          <sup key={i} className="ml-0.5 text-[0.7em] text-faint" title="footnote">[<InlineRuns runs={r.v} />]</sup>
-        ) : (
-          <br key={i} />
-        ),
-      )}
-    </>
-  );
-}
-
-/** Theorem-like blocks get "Lemma 3." labels; proofs end with a tombstone. */
-function ProseBlocks({ blocks, counters }: { blocks: Block[]; counters: Map<string, number> }) {
-  return (
-    <>
-      {blocks.map((b, i) => {
-        if (b.t === "p") return b.v.length ? <span key={i}><InlineRuns runs={b.v} /> </span> : <span key={i} className="block h-2.5" />;
-        if (b.t === "h")
-          return (
-            <span key={i} className={"block font-semibold text-text " + (b.level === 1 ? "mb-1 mt-5 text-[1.3em]" : b.level === 2 ? "mb-1 mt-4 text-[1.12em]" : "mt-3 text-[1em]")}>
-              <InlineRuns runs={b.v} />
-            </span>
-          );
-        if (b.t === "title") return <span key={i} className="mb-3 mt-2 block text-center text-[1.5em] font-semibold text-text"><InlineRuns runs={b.v} /></span>;
-        if (b.t === "li")
-          return (
-            <span key={i} className="block pl-5 -indent-3">
-              <span className="text-faint">{b.ordered ? "•" : "•"}</span> <InlineRuns runs={b.v} />
-            </span>
-          );
-        // theorem-like environment edges
-        if (b.edge === "end") {
-          return b.name === "proof" ? <span key={i} className="block text-right text-text">{"∎"}</span> : <span key={i} className="block h-2" />;
-        }
-        const label = b.name.charAt(0).toUpperCase() + b.name.slice(1);
-        const numbered = !/^(proof|abstract|figure|table|algorithm)$/.test(b.name);
-        const n = numbered ? (counters.get(b.name) ?? 0) + 1 : 0;
-        if (numbered) counters.set(b.name, n);
-        return (
-          <span key={i} className="mt-3 block">
-            <b className={b.name === "proof" ? "font-medium italic text-text" : "font-semibold text-text"}>
-              {label}
-              {numbered ? " " + n : ""}
-            </b>
-            {b.title && (
-              <span className="text-text"> (<InlineRuns runs={b.title} />)</span>
-            )}
-            <b className="text-text">.</b>{" "}
-          </span>
-        );
-      })}
-    </>
-  );
-}
-
-function PreviewView({ output, fontSize, scrollerRef }: { output: string; fontSize: number; scrollerRef: Scroller }) {
-  // A whole .tex document previews its body as a document; the preamble is
-  // summarised in one line instead of being printed as text.
+function PreviewView({ output, fontSize, scrollerRef, studio }: { output: string; fontSize: number; scrollerRef: Scroller; studio: StudioContext }) {
+  // A whole .tex document is typeset as a paper, Overleaf-style.
   const doc = useMemo(() => documentParts(output), [output]);
-  const body = doc ? output.slice(doc.bodyStart, doc.bodyEnd) : output;
-  const preamble = doc ? output.slice(0, doc.bodyStart) : "";
-  const segments = useMemo(() => segment(body), [body]);
-  const counters = new Map<string, number>();
-  const pkgCount = (preamble.match(/\\usepackage/g) ?? []).length;
-  const macroCount = (preamble.match(/\\(?:newcommand|renewcommand|def|DeclareMathOperator)(?![A-Za-z])/g) ?? []).length;
+  if (doc) {
+    return (
+      <PaperPreview
+        body={output.slice(doc.bodyStart, doc.bodyEnd)}
+        full={output}
+        fontSize={fontSize}
+        scrollerRef={scrollerRef}
+        onSource={(src) => {
+          // Find the block's first line in the editor's text and select it there.
+          const first = src.split("\n").map((l) => l.trim()).find((l) => l.length > 3) ?? "";
+          const at = first ? studio.input.indexOf(first.slice(0, 80)) : -1;
+          if (at < 0) return;
+          const line = studio.input.slice(0, at).split("\n").length;
+          studio.selectLines(line, line + Math.max(0, src.trim().split("\n").length - 1));
+        }}
+      />
+    );
+  }
+  return <MarkdownPreview output={output} fontSize={fontSize} scrollerRef={scrollerRef} />;
+}
+
+function MarkdownPreview({ output, fontSize, scrollerRef }: { output: string; fontSize: number; scrollerRef: Scroller }) {
+  const segments = useMemo(() => segment(output), [output]);
 
   return (
     <div
@@ -182,17 +125,7 @@ function PreviewView({ output, fontSize, scrollerRef }: { output: string; fontSi
       className="math-preview scroll-slim h-full overflow-auto px-4 py-3 leading-relaxed text-muted"
       style={{ fontSize: fontSize + 2 }}
     >
-      {doc && (
-        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface-2/60 px-3 py-1.5 text-[11px] text-faint">
-          <span className="font-semibold text-muted">Preamble</span>
-          <span>{pkgCount} packages</span>·<span>{macroCount} macro definitions</span>
-          <span className="ml-auto">kept as written, not previewed</span>
-        </div>
-      )}
       {segments.map((seg, idx) => {
-        if (seg.type === "text" && doc) {
-          return <ProseBlocks key={idx} blocks={parseProse(seg.value)} counters={counters} />;
-        }
         if (seg.type === "text") {
           // Markdown prose is shown as-is; CleanMath formats math, it does not
           // render the surrounding document.
@@ -457,7 +390,7 @@ export default function MathOutput({
           tab === "code" ? (
             <CodeView output={output} fontSize={fontSize} wrap={wrap} scrollerRef={scrollerRef} />
           ) : tab === "preview" ? (
-            <PreviewView output={output} fontSize={fontSize} scrollerRef={scrollerRef} />
+            <PreviewView output={output} fontSize={fontSize} scrollerRef={scrollerRef} studio={studio} />
           ) : (
             <DiffView input={input} output={output} fontSize={fontSize} scrollerRef={scrollerRef} />
           )

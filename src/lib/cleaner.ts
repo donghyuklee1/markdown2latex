@@ -1301,7 +1301,10 @@ export function cleanMathDetailed(input: string, options: ConfigOptions = DEFAUL
     }
     blocks++;
     const content = cleanBlockContent(token.value, options, !!parts);
-    const emitted = token.kind === "display" ? renderDisplay(content, options) : renderInline(content);
+    // A whole document keeps its own numbering: starring is for snippets pasted
+    // into a paper, not for the paper itself.
+    const blockOptions = parts ? { ...options, starEnvironments: false } : options;
+    const emitted = token.kind === "display" ? renderDisplay(content, blockOptions) : renderInline(content);
     out += emitted;
     const end = idx + 1 < tokens.length ? tokens[idx + 1].start : normalized.length;
     mathBlocks.push({

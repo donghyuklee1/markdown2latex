@@ -1,0 +1,48 @@
+\documentclass{article}
+\usepackage{amsmath,booktabs}
+\newtheorem{lemma}{Lemma}[section]
+\title{Wave-Optical Imaging}
+\author{A. Author \and B. Writer}
+\begin{document}
+\maketitle
+\begin{abstract}
+We model a microscope. % a comment
+\end{abstract}
+\section{Notation}\label{sec:not}
+Vectors are bold; $\mathbf{r} = (x,y,z)$ is a coordinate, see Table~\ref{tab:sym} and \eqref{eq:phi}.
+\begin{table}[h]
+\centering
+\caption{Symbols used.}\label{tab:sym}
+\begin{tabular}{@{}>{\raggedright}p{2.8cm}lc@{}}
+\toprule
+Symbol & Meaning & Unit \\
+\midrule
+$y$ & measured stack & -- \\
+$\mathbf{c}$ & Zernike coefficients\footnote{RMS OPD.} & $\mu$m \\
+\bottomrule
+\end{tabular}
+\end{table}
+\section{Forward model}
+\subsection{Pupil phase}
+The optical path difference is
+\begin{equation}
+\phi(u,v;\mathbf{c}) = \sum_{k=0}^{K-1} c_k Z_k(u,v), \quad (u,v)\in\mathbb{D}, \label{eq:phi}
+\end{equation}
+and
+\begin{align}
+a &= b \label{eq:a} \\
+c &= d \nonumber \\
+e &= f
+\end{align}
+\begin{lemma}[Bound]\label{lem:b}
+For all $k$, $|c_k| < 1$ by \eqref{eq:a}.
+\end{lemma}
+\begin{proof}
+Trivial~\cite{goodman2005}.
+\end{proof}
+Equations \eqref{eq:phi}--\eqref{eq:a} and Lemma~\ref{lem:b}; missing \ref{eq:none}.
+\begin{figure}\includegraphics[width=\linewidth]{psf.png}\caption{The PSF.}\label{fig:psf}\end{figure}
+\begin{itemize}
+\item first \item second, see Figure~\ref{fig:psf}
+\end{itemize}
+\end{document}

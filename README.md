@@ -173,8 +173,14 @@ Every rule is conservative by design: each one has a test where it must fire
   is re-checked with KaTeX; what cannot be fixed safely is listed, not guessed.
 - **LaTeX documents** - paste a whole `.tex` file and the preamble is kept
   exactly as written, its `\newcommand` / `\DeclareMathOperator` macros are
-  understood everywhere, and the preview renders the body as a document
-  (sections, theorem environments, lists, citations).
+  understood everywhere, and its equation numbering is preserved.
+- **Paper preview** - a `.tex` document is typeset like the PDF Overleaf gives
+  you: Computer Modern, numbered sections and equations (per `align` row, with
+  `\nonumber` and `\tag`), your `\newtheorem`s, booktabs tables, figures,
+  footnotes and a bibliography. And what a PDF cannot do: **hover** any
+  `\ref` / `\eqref` to see its target, **double-click** any paragraph, equation
+  or table to jump to its source, undefined references show as red **??**,
+  flip to **two columns**, open a **table of contents**, and **Save as PDF**.
 
 ### Pro tools
 
@@ -343,7 +349,7 @@ src/
 
 ```bash
 npm run verify     # lint + typecheck + tests + production build - run before pushing
-npm test           # 661 checks in 22 spec files: engine rules (each with a
+npm test           # 675 checks in 23 spec files: engine rules (each with a
                    # must-not-fire test), KaTeX rendering of every example and
                    # starter, every Tool and Studio feature, idempotence
 npm run examples   # regenerate examples/ (CI fails if it is stale)

@@ -310,3 +310,297 @@ html[data-resizing="y"] * {
 .lab-in-up {
   animation: lab-in-up 380ms cubic-bezier(0.32, 0.72, 0, 1);
 }
+
+/* --- Paper preview ---------------------------------------------------------
+ * A LaTeX document typeset like its PDF: Computer Modern (KaTeX ships it as
+ * KaTeX_Main), justified text, centred numbered equations, booktabs tables -
+ * on a white sheet laid on the pane like paper on a desk. */
+.paper-desk {
+  background: rgb(var(--surface-2) / 0.6);
+}
+.paper {
+  font-family: KaTeX_Main, "Latin Modern Roman", "CMU Serif", "Computer Modern Serif", Cambria, "Times New Roman", serif;
+  color: #141414;
+  line-height: 1.42;
+  text-align: justify;
+  hyphens: auto;
+  -webkit-hyphens: auto;
+}
+.paper-sheet {
+  background: #fff;
+  max-width: 50rem;
+  margin: 1.25rem auto 2.5rem;
+  padding: 3rem 3.5rem 3.5rem;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08), 0 8px 30px -12px rgb(0 0 0 / 0.25);
+  border-radius: 2px;
+}
+@media (max-width: 640px) {
+  .paper-sheet {
+    margin: 0.5rem;
+    padding: 1.5rem 1.1rem;
+  }
+}
+.paper.paper-theme {
+  background: rgb(var(--surface));
+  color: rgb(var(--text));
+}
+/* Maths takes the paper's ink, not the preview colour picker. */
+.paper .katex,
+.math-preview .paper .katex {
+  color: inherit;
+  font-size: 1.04em;
+}
+.paper .katex-display {
+  margin: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.15em 0;
+}
+.paper .katex-display > .katex {
+  text-align: center;
+}
+.paper p {
+  margin: 0 0 0.55em;
+}
+.paper-math {
+  margin: 0.55em 0 0.7em;
+}
+.paper-title {
+  text-align: center;
+  margin-bottom: 1.6em;
+}
+.paper-title h1 {
+  font-size: 1.7em;
+  font-weight: 400;
+  line-height: 1.2;
+  margin-bottom: 0.6em;
+}
+.paper-authors {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4em 2.2em;
+  font-size: 1.1em;
+}
+.paper-date {
+  margin-top: 0.4em;
+  font-size: 1.05em;
+}
+.paper-h1,
+.paper-h2,
+.paper-h3,
+.paper-h4 {
+  font-weight: 700;
+  text-align: left;
+  line-height: 1.25;
+  break-after: avoid;
+}
+.paper-h1 { font-size: 1.36em; margin: 1.3em 0 0.5em; }
+.paper-h2 { font-size: 1.16em; margin: 1.1em 0 0.4em; }
+.paper-h3 { font-size: 1.04em; margin: 0.9em 0 0.35em; }
+.paper-h4 { font-size: 1em; margin: 0.8em 0 0.3em; }
+.paper-num {
+  display: inline-block;
+  min-width: 1.9em;
+  margin-right: 0.35em;
+}
+.paper-abstract {
+  margin: 0 2.5em 1.4em;
+  font-size: 0.92em;
+}
+.paper-abstract-title {
+  text-align: center;
+  font-weight: 700;
+  margin-bottom: 0.35em;
+}
+.paper-theorem,
+.paper-proof {
+  margin: 0.7em 0;
+}
+.paper-theorem > p:first-of-type,
+.paper-proof > p:first-of-type {
+  display: inline;
+}
+.paper-theorem.italic-body {
+  font-style: italic;
+}
+.paper-theorem.italic-body .katex {
+  font-style: normal;
+}
+.paper-theorem-head {
+  font-weight: 700;
+  font-style: normal;
+}
+.paper-theorem-note {
+  font-style: normal;
+}
+.paper-qed {
+  float: right;
+}
+.paper-list {
+  margin: 0.3em 0 0.6em 1.6em;
+}
+.paper-itemize { list-style: disc; }
+.paper-enumerate { list-style: decimal; }
+.paper-description { list-style: none; margin-left: 0.4em; }
+.paper-list li > p { margin-bottom: 0.2em; }
+.paper-float {
+  margin: 1em 0;
+  break-inside: avoid;
+}
+.paper-float figcaption {
+  text-align: center;
+  font-size: 0.93em;
+  margin: 0.35em 0;
+}
+.paper-table-wrap {
+  overflow-x: auto;
+}
+.paper-table {
+  margin: 0 auto;
+  border-collapse: collapse;
+  font-size: 0.93em;
+  text-align: left;
+}
+.paper-table td {
+  padding: 0.22em 0.6em;
+  vertical-align: top;
+}
+.paper-table tr.rule-top td { border-top: 1.4px solid currentColor; padding-top: 0.35em; }
+.paper-table tr.rule-bottom td { border-top: 1.4px solid currentColor; }
+.paper-table tr.rule-mid td,
+.paper-table tr.rule-hline td { border-top: 0.7px solid currentColor; }
+.paper-figure-box {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.6em;
+  padding: 1.6em 1em;
+  border: 1px dashed rgb(0 0 0 / 0.25);
+  border-radius: 4px;
+  color: rgb(0 0 0 / 0.5);
+  font-family: var(--font-sans);
+  font-size: 0.8em;
+}
+.paper-theme .paper-figure-box {
+  border-color: rgb(var(--border-strong));
+  color: rgb(var(--faint));
+}
+.paper-figure-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+}
+.paper-algorithm {
+  margin: 1em 0;
+  border-top: 1.4px solid currentColor;
+  border-bottom: 1.4px solid currentColor;
+  font-size: 0.95em;
+  text-align: left;
+}
+.paper-algorithm-cap {
+  border-bottom: 0.7px solid currentColor;
+  padding: 0.2em 0;
+}
+.paper-algorithm ol {
+  list-style: decimal;
+  margin: 0.3em 0 0.3em 2em;
+}
+.paper-quote {
+  margin: 0.6em 2em;
+}
+.paper-code {
+  font-family: var(--font-mono);
+  font-size: 0.82em;
+  background: rgb(0 0 0 / 0.04);
+  padding: 0.6em 0.8em;
+  border-radius: 3px;
+  overflow-x: auto;
+  text-align: left;
+}
+.paper-tt {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+}
+.paper-bib ol {
+  list-style: none;
+  font-size: 0.93em;
+}
+.paper-bib li {
+  margin-bottom: 0.3em;
+  padding-left: 2.2em;
+  text-indent: -2.2em;
+}
+.paper-bib-num {
+  display: inline-block;
+  width: 2.2em;
+  text-indent: 0;
+}
+.paper-footnotes {
+  margin-top: 2em;
+  padding-top: 0.5em;
+  border-top: 0.7px solid currentColor;
+  width: 40%;
+  font-size: 0.85em;
+}
+.paper-footnotes > div {
+  width: 250%;
+}
+.paper-fn {
+  font-size: 0.7em;
+}
+.paper-ref,
+.paper-cite {
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: background-color 150ms ease;
+}
+.paper-ref:hover {
+  background: rgb(var(--accent) / 0.15);
+}
+.paper-link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: rgb(0 0 0 / 0.3);
+}
+.paper-undefined {
+  color: #c00;
+  font-weight: 700;
+}
+.paper-error {
+  color: #c00;
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+}
+/* Double-click to source: a hint of a hover so the target is clear. */
+.paper [data-src] {
+  border-radius: 3px;
+  transition: background-color 160ms ease;
+}
+.paper [data-src]:hover {
+  background: rgb(var(--accent) / 0.035);
+}
+@keyframes paper-flash {
+  0% { background: rgb(var(--accent) / 0.28); }
+  100% { background: transparent; }
+}
+.paper-flash {
+  animation: paper-flash 1.4s ease-out;
+}
+/* Two columns, like a conference paper; the title and abstract span both. */
+.paper-cols-2 {
+  column-count: 2;
+  column-gap: 1.6em;
+  max-width: 62rem;
+}
+.paper-cols-2 .paper-title,
+.paper-cols-2 .paper-abstract {
+  column-span: all;
+}
+.paper-cols-2 .paper-math,
+.paper-cols-2 .paper-theorem,
+.paper-cols-2 .paper-float {
+  break-inside: avoid;
+}

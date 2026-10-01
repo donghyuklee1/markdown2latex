@@ -69,6 +69,12 @@ export function activeDoc(state: DocsState): Doc {
 export function docTitle(doc: Doc, fallbackIndex: number): string {
   if (doc.title.trim()) return doc.title.trim();
   if (doc.text === null) return "Sample";
+  // A LaTeX document is named by its \title, not by "\documentclass...".
+  const title = /\\title\s*(?:\[[^\]]*\])?\s*\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/.exec(doc.text);
+  if (title) {
+    const t = title[1].replace(/\\[A-Za-z]+\*?/g, " ").replace(/[{}$\\~]/g, " ").replace(/\s+/g, " ").trim();
+    if (t) return t.length > 22 ? t.slice(0, 21).trimEnd() + "\u2026" : t;
+  }
   const line = doc.text
     .split("\n")
     .map((l) => l.replace(/^#+\s*/, "").replace(/[$\\{}]/g, "").trim())
