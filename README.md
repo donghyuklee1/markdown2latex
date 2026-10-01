@@ -1,7 +1,7 @@
 <div align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="static/logo-dark.svg">
-    <img alt="CleanMath - markdown2latex" src="static/logo-light.svg" width="500">
+    <img alt="CleanMath - markdown2latex" src="static/logo-light.svg" width="340">
   </picture>
 </div>
 
@@ -9,8 +9,6 @@
   <a href="https://github.com/donghyuklee1/markdown2latex/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/donghyuklee1/markdown2latex/ci.yml?branch=main&label=CI&style=flat-square" alt="CI status"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/donghyuklee1/markdown2latex?style=flat-square&color=5eead4" alt="MIT license"></a>
   <a href="package.json"><img src="https://img.shields.io/badge/Next.js-14-000?style=flat-square&logo=nextdotjs" alt="Next.js 14"></a>
-  <img src="https://img.shields.io/badge/server-none-5eead4?style=flat-square" alt="No server">
-  <a href="https://github.com/donghyuklee1/markdown2latex/stargazers"><img src="https://img.shields.io/github/stars/donghyuklee1/markdown2latex?style=flat-square&color=f59e0b" alt="GitHub stars"></a>
 </div>
 
 ---
