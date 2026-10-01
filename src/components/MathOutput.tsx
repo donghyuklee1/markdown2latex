@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { BlockMath, InlineMath } from "react-katex";
+import { BlockMath, InlineMath } from "./Katex";
 import { Code2, Eye, TriangleAlert } from "lucide-react";
 import { prepareForKatex, segment } from "@/lib/cleaner";
 import { highlightLine } from "@/lib/highlight";

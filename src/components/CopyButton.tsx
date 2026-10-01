@@ -1,7 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { Check, Copy } from "lucide-react";
+
+/* The platform never changes mid-session, so there is nothing to subscribe to -
+ * but routing the read through useSyncExternalStore keeps the server snapshot
+ * explicit and avoids a hydration mismatch on the shortcut hint. */
+const neverChanges = () => () => {};
+const readIsMac = () => /Mac|iPhone|iPad/.test(navigator.userAgent);
+const assumeNotMac = () => false;
 
 interface Props {
   onCopy: () => void;
@@ -16,11 +23,7 @@ interface Props {
  * this renders, so the click is a single clipboard write - no work in between.
  */
 export default function CopyButton({ onCopy, copied, disabled, charCount }: Props) {
-  const [isMac, setIsMac] = useState(false);
-
-  useEffect(() => {
-    setIsMac(/Mac|iPhone|iPad/.test(navigator.platform) || /Mac/.test(navigator.userAgent));
-  }, []);
+  const isMac = useSyncExternalStore(neverChanges, readIsMac, assumeNotMac);
 
   return (
     <button

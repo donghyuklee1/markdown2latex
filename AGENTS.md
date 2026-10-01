@@ -8,7 +8,7 @@ depth.
 ## What this project is
 
 CleanMath turns messy LLM-generated math into LaTeX that compiles on the first
-try. Next.js 14 App Router, single static page, Tailwind, KaTeX. There is no
+try. Next.js 16 App Router, React 19, single static page, Tailwind, KaTeX. There is no
 backend and there must never be one: no route handlers, no server actions, no
 `fetch`. Privacy is a product feature, not an implementation detail.
 
@@ -32,6 +32,9 @@ npm run examples   # regenerate examples/ (commit the diff)
 | `src/lib/cleaner.ts` | The engine. Pure, synchronous, no DOM, no React, no I/O. |
 | `src/lib/highlight.ts` | LaTeX highlighter for the output pane. Escapes before it wraps. |
 | `src/lib/defaultText.ts` | Sample inputs, also the fixtures for tests and examples. |
+| `src/lib/optionsStore.ts` | Preferences as an external store over `localStorage`. |
+| `src/lib/katexOptions.ts` | The one KaTeX config. Shared with the tests on purpose. |
+| `src/components/Katex.tsx` | Local KaTeX bindings. Replaced the unmaintained `react-katex`. |
 | `src/components/*` | All client components. Browser APIs belong here, never in `lib/`. |
 | `tests/cleaner.spec.ts` | Plain-node checks, run with `tsx`. No test framework. |
 
@@ -59,9 +62,16 @@ browser API in the engine, the design is wrong.
    delimiter to literal text and records an `Issue`. A malformed input must still
    produce output and a rendering preview - the user is usually mid-keystroke.
 
-5. **`dangerouslySetInnerHTML` is used in exactly one place** (the output pane,
-   fed by `highlightLine`). Anything reaching it must be HTML-escaped first. Do
-   not add a second such call.
+5. **`dangerouslySetInnerHTML` has exactly two justified call sites.**
+   `MathOutput` writes highlighted code through `highlightLine`, which escapes
+   before it wraps; `Katex` writes `katex.renderToString` output, which cannot
+   emit raw HTML because `trust` is off. Any third call site needs the same kind
+   of argument, in a comment, or it does not belong.
+
+6. **Do not restore state in an effect.** Preferences come from
+   `src/lib/optionsStore.ts` via `useSyncExternalStore`, which keeps the first
+   paint hydration-safe and syncs across tabs. `react-hooks/set-state-in-effect`
+   is an error, not a warning.
 
 ## Before finishing
 

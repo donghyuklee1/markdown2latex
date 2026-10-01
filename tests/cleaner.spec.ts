@@ -235,6 +235,7 @@ check(
 import katex from "katex";
 import { prepareForKatex, segment } from "../src/lib/cleaner";
 import { EXAMPLES } from "../src/lib/defaultText";
+import { KATEX_OPTIONS } from "../src/lib/katexOptions";
 import type { DelimiterMode } from "../src/lib/cleaner";
 
 const MODES: DelimiterMode[] = ["standard", "academic", "inline"];
@@ -246,9 +247,10 @@ for (const example of EXAMPLES) {
     for (const seg of segment(cleaned)) {
       if (seg.type === "text") continue;
       try {
+        // Same options the preview uses, so a pass here means a pass in the app.
         katex.renderToString(prepareForKatex(seg.value), {
+          ...KATEX_OPTIONS,
           displayMode: seg.type === "display",
-          throwOnError: true,
         });
       } catch (err) {
         previewFailures.push(

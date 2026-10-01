@@ -12,7 +12,7 @@ npm install
 npm run dev          # http://localhost:3000
 ```
 
-Node 18.17+ (20 recommended, matching CI).
+Node 20.9+ (22 recommended, matching CI).
 
 ## The one command to run before pushing
 

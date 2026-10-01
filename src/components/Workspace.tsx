@@ -1,15 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import ControlBar from "./ControlBar";
 import CopyButton from "./CopyButton";
 import MathInput from "./MathInput";
 import MathOutput from "./MathOutput";
 import { useToast } from "./Toast";
-import { cleanMathDetailed, DEFAULT_OPTIONS, type ConfigOptions } from "@/lib/cleaner";
+import { cleanMathDetailed } from "@/lib/cleaner";
 import { DEFAULT_TEXT, EXAMPLES } from "@/lib/defaultText";
-
-const STORAGE_KEY = "cleanmath:options:v1";
+import {
+  getOptionsServerSnapshot,
+  getOptionsSnapshot,
+  setOptions,
+  subscribeToOptions,
+} from "@/lib/optionsStore";
 
 /** Clipboard write with a fallback for browsers that refuse the async API. */
 async function writeClipboard(text: string): Promise<boolean> {
@@ -37,30 +41,17 @@ async function writeClipboard(text: string): Promise<boolean> {
 
 export default function Workspace() {
   const [input, setInput] = useState(DEFAULT_TEXT);
-  const [options, setOptions] = useState<ConfigOptions>(DEFAULT_OPTIONS);
+  // Preferences live in localStorage, read through an external store so the
+  // first paint matches the server and two open tabs stay in step.
+  const options = useSyncExternalStore(
+    subscribeToOptions,
+    getOptionsSnapshot,
+    getOptionsServerSnapshot,
+  );
   const [copied, setCopied] = useState(false);
   const [exampleIdx, setExampleIdx] = useState(0);
   const copiedTimer = useRef<number | undefined>(undefined);
   const toast = useToast();
-
-  // Preferences are restored after mount so the server and client render the
-  // same first paint.
-  useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) setOptions({ ...DEFAULT_OPTIONS, ...(JSON.parse(raw) as Partial<ConfigOptions>) });
-    } catch {
-      /* private mode, corrupt JSON: defaults are fine */
-    }
-  }, []);
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(options));
-    } catch {
-      /* nothing to do: the app works without persistence */
-    }
-  }, [options]);
 
   // The whole engine is synchronous and fast enough to run on every keystroke,
   // so there is no debounce to make the preview lag behind the caret.

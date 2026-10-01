@@ -10,11 +10,13 @@ your own tab and is never transmitted anywhere. Preferences are stored in
 That removes most of the usual surface, but two areas still matter:
 
 - **Rendered output.** The output pane writes highlighted HTML via
-  `dangerouslySetInnerHTML`. Everything that path touches is escaped in
+  `dangerouslySetInnerHTML`. Everything on that path is escaped in
   [`src/lib/highlight.ts`](../src/lib/highlight.ts) before any markup is added.
   A way to get unescaped input into that pane is a real vulnerability.
-- **KaTeX.** Math is rendered with [KaTeX](https://katex.org) in its default
-  configuration, which does not trust input to emit raw HTML.
+- **KaTeX.** Math is rendered by [KaTeX](https://katex.org) through
+  [`src/components/Katex.tsx`](../src/components/Katex.tsx) with `trust: false`,
+  so `\href`, `\htmlData` and friends cannot emit raw HTML or URLs. Turning
+  `trust` on would make pasted input an injection vector.
 
 ## Reporting
 

@@ -8,7 +8,7 @@
 <div align="center">
   <a href="https://github.com/donghyuklee1/markdown2latex/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/donghyuklee1/markdown2latex/ci.yml?branch=main&label=CI&style=flat-square" alt="CI status"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/donghyuklee1/markdown2latex?style=flat-square&color=5eead4" alt="MIT license"></a>
-  <a href="package.json"><img src="https://img.shields.io/badge/Next.js-14-000?style=flat-square&logo=nextdotjs" alt="Next.js 14"></a>
+  <a href="package.json"><img src="https://img.shields.io/badge/Next.js-16-000?style=flat-square&logo=nextdotjs" alt="Next.js 16"></a>
 </div>
 
 ---
@@ -76,7 +76,7 @@ More before/after pairs, in all three delimiter modes: [`examples/`](examples/).
 
 ## Quickstart
 
-**1. Clone and install** (Node 18.17+, 20 recommended):
+**1. Clone and install** (Node 20.9+, 22 recommended):
 
 ```bash
 git clone https://github.com/donghyuklee1/markdown2latex.git
@@ -169,10 +169,13 @@ src/
 │   ├── ControlBar.tsx    Delimiter mode + formatting toggles
 │   ├── MathInput.tsx     Textarea, paste/clear, red error lines
 │   ├── MathOutput.tsx    Clean-code tab + live KaTeX preview tab
-│   └── CopyButton.tsx    The one button that matters
+│   ├── CopyButton.tsx    The one button that matters
+│   └── Katex.tsx         Local KaTeX bindings (~40 lines, no react-katex)
 ├── lib/
 │   ├── cleaner.ts        The engine: tokenizer, rules, re-emission
 │   ├── highlight.ts      ~40-line LaTeX highlighter for the output pane
+│   ├── optionsStore.ts   Preferences, as an external store over localStorage
+│   ├── katexOptions.ts   One KaTeX config, shared by the preview and the tests
 │   └── defaultText.ts    Sample messy inputs
 └── app/
     └── page.tsx          The single page
