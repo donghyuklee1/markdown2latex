@@ -11,7 +11,7 @@
 
 ---
 
-<div align="center">
+<div align="left">
   <a href="examples/"><b>Examples</b></a>
   &nbsp;·&nbsp;
   <a href="docs/ENGINE.md"><b>How the engine works</b></a>
