@@ -39,7 +39,7 @@ in `$$`, a missing `\\` at the end of a row, prose sitting bare inside the maths
 `\int f(x) dx` with no thin space, and a zero-width space you cannot see but
 `pdflatex` can.
 
-CleanMath fixes all of that in one paste, live, as you type - entirely in your
+This tool fixes all of that in one paste, live, as you type - entirely in your
 browser.
 
 <table>
