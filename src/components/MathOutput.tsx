@@ -95,7 +95,9 @@ export default function MathOutput({ output }: Props) {
   const [tab, setTab] = useState<Tab>("code");
 
   return (
-    <section className="flex min-h-[320px] flex-col overflow-hidden rounded-xl border border-ink-800 bg-ink-900/40 lg:min-h-0">
+    // flex-1: this pane sits in a flex column next to the copy button, so unlike
+    // MathInput (a direct grid child) it has to be told to fill the row.
+    <section className="flex min-h-[320px] flex-1 flex-col overflow-hidden rounded-xl border border-ink-800 bg-ink-900/40 lg:min-h-0">
       <div className="flex shrink-0 items-center gap-1 border-b border-ink-800 px-2 py-1.5">
         {TABS.map(({ id, label, icon: Icon }) => (
           <button

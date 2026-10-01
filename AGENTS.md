@@ -12,6 +12,13 @@ try. Next.js 16 App Router, React 19, single static page, Tailwind, KaTeX. There
 backend and there must never be one: no route handlers, no server actions, no
 `fetch`. Privacy is a product feature, not an implementation detail.
 
+> **Next.js 16 is newer than most training data.** APIs, conventions and file
+> layout differ from Next 13/14 - `next lint` is gone, `useSyncExternalStore` is
+> the expected way to read external state, and the App Router has moved on. Check
+> `node_modules/next/dist/docs/` before writing Next-specific code. (`next dev`
+> normally appends a block saying this; it is disabled via `agentRules: false` in
+> `next.config.mjs` because this file is hand-maintained.)
+
 ## Commands
 
 ```bash

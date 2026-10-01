@@ -50,7 +50,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {children}
       <div
         aria-live="polite"
-        className="pointer-events-none fixed inset-x-0 bottom-6 z-50 flex flex-col items-center gap-2 px-4"
+        // Top-centred, not bottom: the copy button is a sticky bottom bar, and a
+        // success toast that lands on top of the control that triggered it hides
+        // the thing the user is looking at. The header's middle is empty.
+        className="pointer-events-none fixed inset-x-0 top-3 z-50 flex flex-col items-center gap-2 px-4"
       >
         {toasts.map((t) => {
           const Icon = ICONS[t.kind];
