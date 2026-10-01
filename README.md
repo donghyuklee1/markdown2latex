@@ -1,7 +1,7 @@
 <div align="left">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="static/logo-dark.png">
-    <img alt="CleanMath - markdown2latex" src="static/logo-light.png" width="500">
+    <img alt="CleanMath - markdown2latex" src="static/logo-light.png" width="360">
   </picture>
 </div>
 
