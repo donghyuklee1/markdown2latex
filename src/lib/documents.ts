@@ -168,16 +168,6 @@ export interface Snippet {
   builtin?: boolean;
 }
 
-export const BUILTIN_SNIPPETS: ReadonlyArray<Snippet> = [
-  { id: "b-align", name: "Aligned derivation", latex: "\\begin{align*}\n  f(x) &= \n  &= \n\\end{align*}", builtin: true },
-  { id: "b-cases", name: "Piecewise (cases)", latex: "f(x) = \\begin{cases}\n  a & \\text{if } x > 0 \\\\\n  b & \\text{otherwise}\n\\end{cases}", builtin: true },
-  { id: "b-matrix", name: "2x2 matrix", latex: "\\begin{bmatrix}\n  a & b \\\\\n  c & d\n\\end{bmatrix}", builtin: true },
-  { id: "b-argmin", name: "Optimisation problem", latex: "\\min_{\\theta} \; \\frac{1}{N} \\sum_{i=1}^{N} \\ell\\big(f_\\theta(x_i), y_i\\big)", builtin: true },
-  { id: "b-softmax", name: "Softmax", latex: "\\mathrm{softmax}(z)_i = \\frac{e^{z_i}}{\\sum_{j} e^{z_j}}", builtin: true },
-  { id: "b-attn", name: "Scaled dot-product attention", latex: "\\mathrm{Attention}(Q, K, V) = \\mathrm{softmax}\\left(\\frac{QK^\\top}{\\sqrt{d_k}}\\right) V", builtin: true },
-  { id: "b-expect", name: "Expectation", latex: "\\mathbb{E}_{x \\sim p(x)}\\left[ f(x) \\right]", builtin: true },
-  { id: "b-norm", name: "Gaussian density", latex: "\\mathcal{N}(x \\mid \\mu, \\sigma^2) = \\frac{1}{\\sqrt{2\\pi\\sigma^2}} \\exp\\left(-\\frac{(x - \\mu)^2}{2\\sigma^2}\\right)", builtin: true },
-];
 
 export const snippetStore = createPersistedStore<Snippet[]>("cleanmath:snippets:v1", [], (raw) =>
   Array.isArray(raw) ? (raw as Snippet[]).filter((x) => x && typeof x.latex === "string" && typeof x.name === "string") : [],

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
-import { BookmarkPlus, Copy, CornerDownLeft, Trash2 } from "lucide-react";
+import { useMemo, useState, useSyncExternalStore } from "react";
+import { BookmarkPlus, Copy, CornerDownLeft, Search, Trash2 } from "lucide-react";
 import { prepareForKatex } from "@/lib/cleaner";
-import { BUILTIN_SNIPPETS, snippets, snippetStore, type Snippet } from "@/lib/documents";
+import { snippets, snippetStore, type Snippet } from "@/lib/documents";
+import { STARTER_CATEGORIES, STARTER_COUNT } from "@/lib/starters";
 import { BlockMath } from "../Katex";
 import { writeClipboard } from "../exporters";
 import { useToast } from "../Toast";
@@ -25,7 +26,25 @@ export default function SnippetsPanel({
 }) {
   const mine = useSyncExternalStore(snippetStore.subscribe, snippetStore.get, snippetStore.getServer);
   const [name, setName] = useState("");
+  const [category, setCategory] = useState(STARTER_CATEGORIES[0].id);
+  const [query, setQuery] = useState("");
   const toast = useToast();
+
+  // Search spans every category; otherwise only the chosen one is rendered,
+  // so the panel stays light with a couple of hundred formulas behind it.
+  const shownStarters = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return (STARTER_CATEGORIES.find((c) => c.id === category) ?? STARTER_CATEGORIES[0]).items.map((s) => ({ ...s, builtin: true }));
+    return STARTER_CATEGORIES.flatMap((c) =>
+      c.items
+        .filter((s) => s.name.toLowerCase().includes(q) || c.label.toLowerCase().includes(q) || s.latex.toLowerCase().includes(q))
+        .map((s) => ({ ...s, builtin: true, name: s.name + "  \u00b7  " + c.label })),
+    ).slice(0, 40);
+  }, [category, query]);
+  const shownMine = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return q ? mine.filter((s) => s.name.toLowerCase().includes(q) || s.latex.toLowerCase().includes(q)) : mine;
+  }, [mine, query]);
 
   const save = (source: "selection" | "output") => {
     const latex = (source === "selection" ? getSelection() : output).trim();
@@ -92,23 +111,56 @@ export default function SnippetsPanel({
         </div>
       </div>
 
-      {mine.length > 0 && (
+      <label className="flex items-center gap-2 rounded-lg border border-border bg-bg px-2.5">
+        <Search size={13} className="text-faint" />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={"Search " + STARTER_COUNT + " starters and yours"}
+          aria-label="Search snippets"
+          className="h-8 w-full bg-transparent text-xs text-text outline-none placeholder:text-faint"
+        />
+      </label>
+
+      {shownMine.length > 0 && (
         <section>
           <h3 className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-faint">Yours</h3>
           <ul className="space-y-1.5">
-            {mine.map((s) => (
+            {shownMine.map((s) => (
               <Card key={s.id} s={s} />
             ))}
           </ul>
         </section>
       )}
+
       <section>
-        <h3 className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-faint">Starters</h3>
-        <ul className="space-y-1.5">
-          {BUILTIN_SNIPPETS.map((s) => (
+        <h3 className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-faint">
+          Starters {query && <span className="normal-case tracking-normal">- {shownStarters.length} matches</span>}
+        </h3>
+        {!query && (
+          <div className="mb-2 flex flex-wrap gap-1">
+            {STARTER_CATEGORIES.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => setCategory(c.id)}
+                className={
+                  "press-soft rounded-md px-2 py-1 text-[11px] font-semibold transition-colors duration-200 " +
+                  (c.id === category ? "bg-accent/10 text-accent" : "text-faint hover:bg-surface-2 hover:text-muted")
+                }
+              >
+                {c.label}
+                <span className="ml-1 font-mono text-[9px] opacity-60">{c.items.length}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        <ul key={query ? "q" : category} className="animate-fade-in space-y-1.5">
+          {shownStarters.map((s) => (
             <Card key={s.id} s={s} />
           ))}
         </ul>
+        {query && !shownStarters.length && <p className="py-4 text-center text-xs text-faint">No starter matches.</p>}
       </section>
     </div>
   );
