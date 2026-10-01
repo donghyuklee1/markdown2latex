@@ -281,25 +281,6 @@ The **Tools** view (header switch, `Alt+R`) holds nine research utilities:
 Display environments you already wrote (`align`, `equation`, `gather`, ...) stay
 bare in every mode - wrapping them is what broke the snippet in the first place.
 
-## Deploying as a website
-
-The whole app prerenders to static pages - the page itself, `robots.txt`,
-`sitemap.xml`, the install manifest and the social preview image - so it can go
-anywhere that serves Next.js.
-
-```bash
-NEXT_PUBLIC_SITE_URL=https://your.domain npm run build && npm start
-```
-
-`NEXT_PUBLIC_SITE_URL` is the one setting: canonical links, the sitemap and
-link previews all derive from it ([`src/lib/site.ts`](src/lib/site.ts)). On Vercel,
-set it as an environment variable and import the repo. For anything else there is
-a Dockerfile:
-
-```bash
-docker build -t markdown2latex . && docker run -p 3000:3000 markdown2latex
-```
-
 ## How it works
 
 <picture>
