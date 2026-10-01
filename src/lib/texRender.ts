@@ -355,7 +355,7 @@ export function parseRuns(src: string, ctx: Ctx): Run[] {
 
 const runsText = (runs: Run[]): string =>
   runs
-    .map((r) => (r.t === "text" ? r.v : r.t === "math" ? "x" : "v" in r && Array.isArray(r.v) ? runsText(r.v) : ""))
+    .map((r) => (r.t === "text" ? r.v : r.t === "math" ? r.v : "v" in r && Array.isArray(r.v) ? runsText(r.v) : ""))
     .join("");
 
 /* -------------------------------------------------------- display maths */

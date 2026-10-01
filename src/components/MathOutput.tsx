@@ -1,6 +1,6 @@
 "use client";
 
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { BlockMath, InlineMath } from "./Katex";
 import {
   ArrowDownUp,
@@ -21,7 +21,7 @@ import { prepareForKatex, segment } from "@/lib/cleaner";
 import { diffLines, type DiffLine } from "@/lib/diff";
 import { highlightLine } from "@/lib/highlight";
 import { documentParts } from "@/lib/texDocument";
-import { OUTPUT_TABS, type OutputTab } from "@/lib/persistedStore";
+import type { OutputTab } from "@/lib/persistedStore";
 import BrandMark from "./BrandMark";
 import MathColorPicker from "./MathColorPicker";
 import PaperPreview from "./PaperPreview";
@@ -297,7 +297,26 @@ export default function MathOutput({
   scrollerRef,
   studio,
 }: Props) {
-  const idx = Math.max(0, OUTPUT_TABS.indexOf(tab));
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const indicatorRef = useRef<HTMLSpanElement>(null);
+
+  // Place the highlight under the active tab. A DOM write, not state: no
+  // second render, and it follows label-width changes on resize.
+  useLayoutEffect(() => {
+    const list = tabsRef.current;
+    const pill = indicatorRef.current;
+    if (!list || !pill) return;
+    const place = () => {
+      const active = list.querySelector<HTMLElement>('[data-tab="' + tab + '"]');
+      if (!active) return;
+      pill.style.width = active.offsetWidth + "px";
+      pill.style.transform = "translateX(" + active.offsetLeft + "px)";
+    };
+    place();
+    const ro = new ResizeObserver(place);
+    ro.observe(list);
+    return () => ro.disconnect();
+  }, [tab]);
 
   return (
     // flex-1: this pane sits in a flex column next to the action bar, so unlike
@@ -305,17 +324,16 @@ export default function MathOutput({
     <section className="themed flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-surface">
       <div className="flex shrink-0 items-center gap-1 border-b border-border px-1.5 py-1.5">
         {/* One highlight that slides between equal-width tabs. */}
-        <div role="tablist" aria-label="Output view" className="relative grid grid-cols-4">
-          <span
-            aria-hidden
-            className="spring absolute inset-y-0 left-0 rounded-lg bg-surface-2"
-            style={{ width: "calc(100% / " + TABS.length + ")", transform: "translateX(" + idx * 100 + "%)" }}
-          />
+        {/* Tabs size to their labels with one even gap; the highlight is measured
+            onto the active tab, so it glides to the right width and position. */}
+        <div role="tablist" aria-label="Output view" ref={tabsRef} className="relative flex items-center gap-1">
+          <span aria-hidden ref={indicatorRef} className="spring absolute inset-y-0 left-0 rounded-lg bg-surface-2" style={{ width: 0 }} />
           {TABS.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               type="button"
               role="tab"
+              data-tab={id}
               aria-selected={tab === id}
               title={label + " (Alt+P cycles)"}
               onClick={() => onTab(id)}

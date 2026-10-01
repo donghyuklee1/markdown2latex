@@ -1355,7 +1355,10 @@ export function prepareForKatex(latex: string): string {
   if (unwrap) s = unwrap[2].trim();
 
   return s
-    .replace(/\\(?:label|nonumber)\s*\{?[^}\n]*\}?/g, "")
+    // Two exact patterns: a combined one (`\\(label|nonumber)\s*\{?...`) let
+    // `\nonumber` run across the newline and swallow the `\end{align}` after it.
+    .replace(/\\label\s*\{[^{}]*\}/g, "")
+    .replace(/\\(?:nonumber|notag)(?![A-Za-z])/g, "")
     .replace(/\\begin\{multline\*?\}/g, "\\begin{gather*}")
     .replace(/\\end\{multline\*?\}/g, "\\end{gather*}")
     .replace(/\\begin\{(?:flalign\*?|eqnarray\*?|alignat\*?)\}(?:\{\d+\})?/g, "\\begin{align*}")

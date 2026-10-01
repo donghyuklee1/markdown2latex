@@ -1,6 +1,7 @@
 import { check, finish } from "./harness";
 import { repairLatex, suggestCommand } from "../src/lib/repair";
 import { EXAMPLES } from "../src/lib/defaultText";
+import { katexMacros } from "../src/lib/texDocument";
 
 const out = (s: string) => repairLatex(s).output;
 
@@ -24,7 +25,7 @@ check("valid input is untouched", out("$a + b$ and $$\\sum_i x_i$$"), "$a + b$ a
 check("code spans are never 'fixed'", out("`\\alpha` and $\\theta$"), "`\\alpha` and $\\theta$");
 check("escaped braces do not count", out("$\\{x\\}$"), "$\\{x\\}$");
 check("a single-letter unknown command is not guessed at", suggestCommand("q") === null ? "null" : "guessed", "null");
-check("every bundled example needs no repair", EXAMPLES.filter((e) => e.id !== "broken").map((e) => repairLatex(e.text).fixes.length).join(","), "0,0,0,0");
+check("every bundled example needs no repair", EXAMPLES.filter((e) => e.id !== "broken").map((e) => repairLatex(e.text, katexMacros(e.text)).fixes.length).join(","), "0,0,0,0,0");
 
 {
   const r = repairLatex("$$\\begin{nonsenseenv} x \\end{nonsenseenv}$$");

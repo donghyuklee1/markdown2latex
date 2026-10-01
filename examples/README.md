@@ -9,3 +9,4 @@ input and what CleanMath produces in all three delimiter modes.
 - [Unicode + matrices](03-unicode-soup.md) - Matrix rows missing their row breaks
 - [Truncated answer](04-broken.md) - Unclosed $$ and \( - see the safety net catch them
 - [Spacing + escapes](05-spacing.md) - Bare sin, dx with no thin space, glued \text{}, x**2 and JSON-escaped \\frac
+- [Research report (.tex)](06-report.md) - A whole LaTeX paper: macros, numbered equations, theorems, a table - open Live Preview

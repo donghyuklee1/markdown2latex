@@ -26,7 +26,7 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="static/readme/screenshot-dark.png">
-  <img alt="The markdown2Latex workspace: messy LLM output on the left, clean LaTeX on the right, with delimiter modes and cleanup toggles above." src="static/readme/screenshot-light.png" width="100%">
+  <img alt="A full LaTeX research report in the editor on the left, typeset in the Live Preview on the right with numbered sections, equations and resolved references." src="static/readme/screenshot-light.png" width="100%">
 </picture>
 
 </div>
@@ -89,6 +89,25 @@ The `$$` around the `align` is **gone** (a hard Overleaf error), the `align` is
 **starred** so it will not renumber your paper, the rows grew their missing `&`
 and `\text{}`, `sin` became an upright `\sin`, and the integral got its `\,dx`.
 More before/after pairs, in all three delimiter modes: [`examples/`](examples/).
+
+## A whole paper, live
+
+Paste an entire `.tex` report - or pick **Examples -> Research report** - and the
+**Live Preview** typesets it the way Overleaf's PDF would, as you type:
+
+- your preamble's `\newcommand` / `\DeclareMathOperator` macros just work;
+- sections, equations and every `align` row are numbered; `\ref`, `\eqref` and
+  `\cite` resolve (`Theorem 2.2`, `(4)`, `[1]`), and a missing label shows as
+  a red **??** before you ever compile;
+- `\newtheorem` environments, proofs, booktabs tables, figures, lists, footnotes
+  and the bibliography all render;
+- hover a reference to see its target, double-click anything to jump to its
+  source, switch to two columns, or **Save as PDF**.
+
+The full report used in the screenshot is
+[`examples/06-report.md`](examples/06-report.md) - 124 lines of LaTeX with five
+custom macros, four numbered equations, a theorem, a definition, a lemma, a
+proof, a results table, a figure and a bibliography.
 
 ## Quickstart
 
@@ -349,7 +368,7 @@ src/
 
 ```bash
 npm run verify     # lint + typecheck + tests + production build - run before pushing
-npm test           # 675 checks in 23 spec files: engine rules (each with a
+npm test           # 677 checks in 23 spec files: engine rules (each with a
                    # must-not-fire test), KaTeX rendering of every example and
                    # starter, every Tool and Studio feature, idempotence
 npm run examples   # regenerate examples/ (CI fails if it is stale)

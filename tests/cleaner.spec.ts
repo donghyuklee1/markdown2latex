@@ -335,6 +335,12 @@ check(
   );
 }
 
+check(
+  "prepareForKatex: a trailing \\nonumber never swallows the \\end after it",
+  prepareForKatex("\\begin{align}\na &= b \\label{x} \\\\\nc &= d \\nonumber\n\\end{align}").endsWith("\\end{align}") ? "kept" : "swallowed",
+  "kept",
+);
+
 /* --- safety net ---------------------------------------------------------- */
 
 {
@@ -407,12 +413,15 @@ import katex from "katex";
 import { prepareForKatex, segment } from "../src/lib/cleaner";
 import { EXAMPLES } from "../src/lib/defaultText";
 import { KATEX_OPTIONS } from "../src/lib/katexOptions";
+import { katexMacros } from "../src/lib/texDocument";
 import type { DelimiterMode } from "../src/lib/cleaner";
 
 const MODES: DelimiterMode[] = ["standard", "academic", "inline"];
 const previewFailures: string[] = [];
 
 for (const example of EXAMPLES) {
+  // A whole .tex example brings its own macros, exactly as the app passes them.
+  const macros = katexMacros(example.text);
   for (const mode of MODES) {
     const cleaned = cleanMath(example.text, opts({ delimiterMode: mode }));
     for (const seg of segment(cleaned)) {
@@ -422,6 +431,7 @@ for (const example of EXAMPLES) {
         katex.renderToString(prepareForKatex(seg.value), {
           ...KATEX_OPTIONS,
           displayMode: seg.type === "display",
+          macros: { ...macros },
         });
       } catch (err) {
         previewFailures.push(
@@ -451,7 +461,7 @@ import { toLatexDocument } from "../src/lib/latexDocument";
     diagnose(r.mathBlocks).map((d) => d.line + ": " + d.message.slice(0, 22)).join(" | "),
     "4: Unexpected end of inpu | 6: Undefined control sequ",
   );
-  check("every bundled example is diagnostically clean", String(EXAMPLES.flatMap((e) => diagnose(cleanMathDetailed(e.text, opts()).mathBlocks)).length), "0");
+  check("every bundled example is diagnostically clean", String(EXAMPLES.flatMap((e) => diagnose(cleanMathDetailed(e.text, opts()).mathBlocks, katexMacros(e.text))).length), "0");
 }
 
 check(
