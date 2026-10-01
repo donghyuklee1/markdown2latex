@@ -1161,8 +1161,109 @@ export interface CleanResult {
   mathBlocks: MathBlock[];
 }
 
+/* --------------------------------------------- fragmented inline maths */
+
+/** Commands that only occur in maths - a text fragment holding one is formula, not prose. */
+const MATH_COMMAND = /^\\(?:alpha|beta|gamma|delta|epsilon|varepsilon|zeta|eta|theta|vartheta|iota|kappa|lambda|mu|nu|xi|pi|rho|sigma|tau|upsilon|phi|varphi|chi|psi|omega|Gamma|Delta|Theta|Lambda|Xi|Pi|Sigma|Phi|Psi|Omega|arg|max|min|sup|inf|lim|sum|prod|int|oint|frac|dfrac|tfrac|sqrt|hat|bar|tilde|vec|dot|mathbf|mathcal|mathbb|mathrm|boldsymbol|bm|operatorname|mid|cdot|times|div|pm|leq|le|geq|ge|neq|approx|sim|equiv|propto|in|notin|subset|subseteq|cup|cap|to|rightarrow|infty|partial|nabla|log|ln|exp|sin|cos|tan|det|left|right|big|Big|quad|qquad|ldots|cdots|top|prime|forall|exists)$/;
+/** Bare function names that read as words but are maths. */
+const FUNCTION_WORDS = /\b(?:sin|cos|tan|log|ln|exp|max|min|arg|det|lim|sup|inf|mod)\b/g;
+
+/** Does a stretch of text between or around $...$ spans read as formula rather than prose? */
+function isMathyText(text: string): boolean {
+  const s = text.trim();
+  if (!s) return false;
+  // Anything outside printable ASCII - Hangul, CJK, accented letters - is prose.
+  // (Written as a range of printable characters so no editor can "decode" it.)
+  if (/[^ -~\s]/.test(s)) return false;
+  const commands = s.match(/\\[A-Za-z]+/g) ?? [];
+  if (commands.some((c) => !MATH_COMMAND.test(c))) return false; // \cite, \textbf, \ref ...
+  // Letters glued to a script (`mc^2`, `xy_i`) are a product of symbols, not a word.
+  const words = s.replace(/\\[A-Za-z]+/g, " ").replace(/[A-Za-z]+(?=\s*[\^_])/g, " ").replace(FUNCTION_WORDS, " ");
+  if (/[A-Za-z]{2,}/.test(words)) return false; // a real word: this is prose
+  return /[=<>+*/^_|-]|\\[A-Za-z]+|\\[,;:!]|[A-Za-z]\s*\(/.test(s);
+}
+
+/** An edge absorbed into a span must carry an operand, not just `=` or `+`. */
+const hasOperand = (s: string) => /[A-Za-z0-9]|\\[A-Za-z]/.test(s);
+
+/** Longest whitespace-bounded tail of `seg` that is mathy ("We have L = " -> "L = "). */
+function mathySuffix(seg: string): string {
+  for (let k = 0; k < seg.length; k++) {
+    if (k > 0 && !/\s/.test(seg[k - 1])) continue;
+    const tail = seg.slice(k);
+    if (isMathyText(tail) && hasOperand(tail)) return tail;
+  }
+  return "";
+}
+
+/** Longest whitespace-bounded head of `seg` that is mathy, without trailing punctuation. */
+function mathyPrefix(seg: string): string {
+  for (let k = seg.length; k > 0; k--) {
+    if (k < seg.length && !/\s/.test(seg[k])) continue;
+    const head = seg.slice(0, k).replace(/[\s.,;:!?]+$/, "");
+    if (head.trim() && isMathyText(head) && hasOperand(head)) return head;
+  }
+  return "";
+}
+
+/**
+ * LLMs sometimes dollar only the "obviously mathematical" pieces of one
+ * formula: `$\hat{y}$ = \arg\max_{y} P(y) $\prod_i$ P(x_i \mid y)`. On a single
+ * line, inline spans separated (or followed/preceded) only by formula-looking
+ * text are merged into one span. Anything with a real word, a non-maths
+ * command or non-ASCII text in between is prose and left alone.
+ */
+export function mergeFragmentedMath(src: string): string {
+  const { tokens } = tokenize(src);
+  const parts = documentParts(src);
+  const inBody = (o: number) => !parts || (o >= parts.bodyStart && o < parts.bodyEnd);
+  const endOf = (i: number) => (i + 1 < tokens.length ? tokens[i + 1].start : src.length);
+  const edits: Array<{ start: number; end: number; text: string }> = [];
+
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    if (t.kind !== "inline" || !inBody(t.start)) continue;
+    let j = i;
+    const pieces = [t.value];
+    while (
+      j + 2 < tokens.length &&
+      tokens[j + 1].kind === "text" &&
+      tokens[j + 2].kind === "inline" &&
+      !tokens[j + 1].value.includes("\n") &&
+      isMathyText(tokens[j + 1].value)
+    ) {
+      pieces.push(tokens[j + 1].value, tokens[j + 2].value);
+      j += 2;
+    }
+    let lead = "";
+    if (i > 0 && tokens[i - 1].kind === "text") {
+      const prev = tokens[i - 1].value;
+      lead = mathySuffix(prev.slice(prev.lastIndexOf("\n") + 1));
+    }
+    let trail = "";
+    if (j + 1 < tokens.length && tokens[j + 1].kind === "text") {
+      const next = tokens[j + 1].value;
+      const nl = next.indexOf("\n");
+      trail = mathyPrefix(nl < 0 ? next : next.slice(0, nl));
+    }
+    if (j > i || lead || trail) {
+      // Keep the separating space a trimmed lead or trail would have eaten.
+      const before = lead && /^\s/.test(lead) ? " " : "";
+      edits.push({
+        start: t.start - lead.length,
+        end: trail ? tokens[j + 1].start + trail.length : endOf(j),
+        text: before + "$" + (lead + pieces.join("") + trail).trim().replace(/\s{2,}/g, " ") + "$",
+      });
+    }
+    i = j;
+  }
+  let out = src;
+  for (const e of edits.reverse()) out = out.slice(0, e.start) + e.text + out.slice(e.end);
+  return out;
+}
+
 export function cleanMathDetailed(input: string, options: ConfigOptions = DEFAULT_OPTIONS): CleanResult {
-  const normalized = normalizeUnicode(input);
+  const normalized = mergeFragmentedMath(normalizeUnicode(input));
   const { tokens, issues: allIssues } = tokenize(normalized);
   // A whole LaTeX document: the preamble (and anything after \end{document})
   // is the author's configuration - \newcommand{\R}{$\mathbb{R}$} and the like -
