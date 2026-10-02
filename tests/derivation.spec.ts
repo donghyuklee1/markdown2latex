@@ -1,5 +1,5 @@
 import { check, finish } from "./harness";
-import { bottomUp, buildPrompt, geminiRequest, mergeAi, namesIn, offlineModel, reduceEdges, rejectsThinking, thinkingConfig, topDown, variablesTable, type Step } from "../src/lib/derivation";
+import { bottomUp, buildPrompt, fallbackModels, modelFamily, geminiRequest, mergeAi, namesIn, offlineModel, reduceEdges, rejectsThinking, thinkingConfig, topDown, variablesTable, type Step } from "../src/lib/derivation";
 
 const SRC = String.raw`The critical field:
 $$E_{crit} = \frac{q N_a W_{BR}}{\epsilon_s}$$
@@ -69,4 +69,11 @@ check("parts: a long document is cut", String(buildPrompt("x".repeat(50000), d).
 check("thinking rejection is recognised", [rejectsThinking(400, "Thinking level is not supported"), rejectsThinking(400, "bad key"), rejectsThinking(503, "thinking")].join(","), "true,false,false");
 const stepsOnly = mergeAi({ title: "T", steps: ai.steps }, d);
 check("progressive: steps alone keep the offline variables", stepsOnly.variables.length === d.variables.length && stepsOnly.ideas.length === 0 ? "ok" : "bad", "ok");
+
+/* --- fallbacks when a model is busy ------------------------------------------- */
+const M = (...ids: string[]) => ids.map((id) => ({ id, label: id }));
+const ranked = M("gemini-3.8-flash", "gemini-3.8-flash-001", "gemini-3.8-flash-preview-09", "gemini-3.8-flash-lite", "gemini-3.5-pro", "gemini-3.5-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash");
+check("busy model: skip its siblings, then one per other family", fallbackModels("gemini-3.8-flash", ranked).join(" "), "gemini-3.8-flash gemini-3.5-flash gemini-2.5-flash gemini-2.0-flash gemini-3.8-flash-lite");
+check("family of a model", JSON.stringify([modelFamily("gemini-2.5-flash-001"), modelFamily("gemini-2.5-flash-lite")].map((f) => f.key)), '["2.5:flash","2.5:lite"]');
+check("non-Gemini names are never fallbacks", fallbackModels("gemini-3.8-flash", M("learnlm-2.0", "gemma-3")).join(" "), "gemini-3.8-flash");
 finish("derivation");

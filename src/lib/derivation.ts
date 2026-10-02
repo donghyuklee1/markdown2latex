@@ -571,6 +571,8 @@ export function geminiAnswer(body: unknown): { text: string } | { error: string 
   const b = (body ?? {}) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> }; finishReason?: string }>; promptFeedback?: { blockReason?: string } };
   if (b.promptFeedback?.blockReason) return { error: "Gemini declined this input (" + b.promptFeedback.blockReason + ")." };
   const text = b.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
+  // Cut off at the output limit: the JSON is incomplete, and asking again will not help.
+  if (b.candidates?.[0]?.finishReason === "MAX_TOKENS") return { error: "The answer was cut off at Gemini's length limit - try fewer pages, or \"Formulas only\"." };
   return text ? { text } : { error: "Gemini returned an empty answer (" + (b.candidates?.[0]?.finishReason ?? "no reason") + ")." };
 }
 
@@ -593,17 +595,39 @@ export function rankModels(body: unknown): ModelInfo[] {
 /** Busy or rate-limited: worth retrying, or trying another model. */
 export const retryable = (status: number) => status === 429 || status === 500 || status === 503 || status === 504;
 
+/** "gemini-2.5-flash-001" -> generation 2.5, tier "flash"; aliases and versions share a family. */
+export function modelFamily(id: string): { gen: number; tier: "flash" | "lite" | "pro" | "other"; key: string } {
+  const gen = Number(/gemini-(\d+(?:\.\d+)?)/.exec(id)?.[1] ?? 0);
+  const tier = /flash-lite|lite/.test(id) ? "lite" : /flash/.test(id) ? "flash" : /pro/.test(id) ? "pro" : "other";
+  return { gen, tier, key: gen + ":" + tier };
+}
+
 /**
- * Which models to try, in order: the chosen one, then up to `extra` others
- * from the ranked list - stable releases before previews, Flash before Pro -
- * so a model under "high demand" falls back to a quieter one.
+ * Which models to try, in order, when the chosen one is busy. A busy model's
+ * siblings (other versions or aliases of the same family) are usually busy
+ * too, so the fallbacks are one per *other* family: stable before preview,
+ * Flash before Flash-Lite before Pro, newest generation first - which reaches
+ * an older, quieter generation within a step or two.
  */
-export function fallbackModels(chosen: string, ranked: ReadonlyArray<ModelInfo>, extra = 2): string[] {
+export function fallbackModels(chosen: string, ranked: ReadonlyArray<ModelInfo>, extra = 4): string[] {
   const stable = (id: string) => !/(preview|exp|latest)/.test(id);
+  const tierRank = { flash: 0, lite: 1, pro: 2, other: 3 } as const;
+  const busy = modelFamily(chosen).key;
+  const seen = new Set([busy]);
   const others = ranked
     .map((m) => m.id)
-    .filter((id) => id !== chosen)
-    .sort((a, b) => Number(stable(b)) - Number(stable(a)) || Number(/flash/.test(b)) - Number(/flash/.test(a)));
+    .filter((id) => id !== chosen && modelFamily(id).gen > 0)
+    .sort((a, b) => {
+      const fa = modelFamily(a);
+      const fb = modelFamily(b);
+      return Number(stable(b)) - Number(stable(a)) || tierRank[fa.tier] - tierRank[fb.tier] || fb.gen - fa.gen;
+    })
+    .filter((id) => {
+      const k = modelFamily(id).key;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
   return [chosen, ...others.slice(0, extra)].filter(Boolean);
 }
 

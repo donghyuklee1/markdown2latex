@@ -7,7 +7,7 @@ import { OCR_FORMATS, OCR_MAX_BYTES, OCR_MIME, ocrRequest, parseOcr, type OcrFor
 import { aiStore } from "@/lib/persistedStore";
 import { writeClipboard } from "../exporters";
 import { useToast } from "../Toast";
-import { AiError, generateJson } from "../derivation/gemini";
+import { AiError, generateJson, listModels, type ModelInfo } from "../derivation/gemini";
 import { openAiKey } from "./AiKeyDialog";
 import { currentModel } from "./aiKey";
 
@@ -83,7 +83,10 @@ export default function ImageConvert({ insert, replace, openAsNew }: ConvertTarg
   const [format, setFormat] = useState<OcrFormat>("markdown");
   const [hint, setHint] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ message: string; detail: string } | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+  const [models, setModels] = useState<ModelInfo[]>([]);
+  const [pick, setPick] = useState("");
   const [result, setResult] = useState<OcrResult | null>(null);
   const [text, setText] = useState("");
   const [took, setTook] = useState<number | null>(null);
@@ -105,28 +108,48 @@ export default function ImageConvert({ insert, replace, openAsNew }: ConvertTarg
     setBusy(true);
     setError(null);
     setResult(null);
-    const started = performance.now();
+    setStatus(f.type === "application/pdf" ? "Reading the PDF - longer documents take a little while..." : null);
+    const started = Date.now();
     try {
       const { mime, base64 } = await prepare(f);
-      const model = await currentModel();
-      const answer = await generateJson((m, thinking) => ocrRequest(fmt, mime, base64, m, hint, thinking), ai.apiKey, model, ctl.signal);
-      const parsed = parseOcr(answer.json);
-      if (!parsed) throw new AiError("Gemini found no text or formulas in this image.");
-      setResult(parsed);
-      setText(parsed.content);
-      setTook(Math.round((performance.now() - started) / 100) / 10);
+      const model = pick || (await currentModel());
+      // Overload usually passes within seconds: after a round where every
+      // model was busy, one more full round, by itself, after a short pause.
+      for (let round = 0; ; round++) {
+        try {
+          const answer = await generateJson((m, thinking) => ocrRequest(fmt, mime, base64, m, hint, thinking), ai.apiKey, model, ctl.signal, setStatus);
+          const parsed = parseOcr(answer.json);
+          if (!parsed) throw new AiError("Gemini found no text or formulas in this image.");
+          setResult(parsed);
+          setText(parsed.content);
+          setTook(Math.round((Date.now() - started) / 100) / 10);
+          return;
+        } catch (e) {
+          if (round > 0 || !(e instanceof AiError) || ![500, 503, 504].includes(e.status)) throw e;
+          for (let left = 8; left > 0; left--) {
+            setStatus("Every model was busy - trying again in " + left + " s...");
+            await new Promise((r) => setTimeout(r, 1000));
+            if (ctl.signal.aborted) throw new DOMException("Aborted", "AbortError");
+          }
+        }
+      }
     } catch (e) {
       if (e instanceof DOMException && e.name === "AbortError") return;
-      setError(e instanceof AiError ? e.message : "Conversion failed: " + String(e));
+      setError(e instanceof AiError ? { message: e.message, detail: e.detail } : { message: "Conversion failed: " + String(e), detail: "" });
+      // Offer the other models for a retry.
+      listModels(ai.apiKey).then(setModels, () => undefined);
     } finally {
-      if (abort.current === ctl) setBusy(false);
+      if (abort.current === ctl) {
+        setBusy(false);
+        setStatus(null);
+      }
     }
   };
 
   const choose = (f: File | null) => {
     if (!f) return;
     if (!isConvertible(f)) {
-      setError("Choose a PNG, JPEG, WebP, HEIC image or a PDF.");
+      setError({ message: "Choose a PNG, JPEG, WebP, HEIC image or a PDF.", detail: "" });
       return;
     }
     setFile(f);
@@ -261,8 +284,33 @@ export default function ImageConvert({ insert, replace, openAsNew }: ConvertTarg
           {/* result */}
           <div className="flex min-h-[220px] flex-col">
             {error && (
-              <div className="m-3 flex gap-2 rounded-lg bg-danger/10 px-3 py-2 text-xs text-danger">
-                <AlertTriangle size={14} className="mt-px shrink-0" /> {error}
+              <div className="m-3 space-y-2 rounded-lg bg-danger/10 px-3 py-2.5 text-xs text-danger">
+                <div className="flex gap-2">
+                  <AlertTriangle size={14} className="mt-px shrink-0" /> {error.message}
+                </div>
+                {error.detail && error.detail !== error.message && <div className="pl-6 font-mono text-[10.5px] leading-snug text-danger/70">Google: {error.detail.slice(0, 220)}</div>}
+                {file && (
+                  <div className="flex flex-wrap items-center gap-1.5 pl-6">
+                    <button type="button" onClick={() => void convert()} disabled={busy} className="press flex items-center gap-1 rounded-md bg-danger px-2.5 py-1 font-semibold text-bg disabled:opacity-50">
+                      <RefreshCw size={12} /> Try again
+                    </button>
+                    {models.length > 1 && (
+                      <select
+                        value={pick}
+                        onChange={(e) => setPick(e.target.value)}
+                        aria-label="Model for this conversion"
+                        className="h-7 rounded-md border border-danger/30 bg-surface px-1.5 text-[11px] text-text"
+                      >
+                        <option value="">Same model ({ai.model || "default"})</option>
+                        {models.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.label}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                )}
               </div>
             )}
             {result ? (
@@ -312,7 +360,8 @@ export default function ImageConvert({ insert, replace, openAsNew }: ConvertTarg
                 <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-xs text-faint">
                   {busy ? (
                     <>
-                      <Loader2 size={18} className="animate-spin text-[#4b8cf5]" /> Transcribing - formulas, text and tables...
+                      <Loader2 size={18} className="animate-spin text-[#4b8cf5]" />
+                      {status ?? "Transcribing - formulas, text and tables..."}
                     </>
                   ) : (
                     <>The LaTeX or Markdown appears here, ready to edit before it goes into your document.</>

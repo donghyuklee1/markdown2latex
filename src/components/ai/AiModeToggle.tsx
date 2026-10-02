@@ -10,8 +10,8 @@ import { runStore } from "./orchestrator";
 
 /**
  * Header switch for AI mode. Without a key it asks for one (saving the key
- * turns AI mode on); with one it toggles. Its dot pulses while a background
- * analysis runs.
+ * turns AI mode on); with one it toggles. It looks like the buttons beside
+ * it: the Gemini logo is in colour when AI mode is on, grey when it is off.
  */
 export default function AiModeToggle() {
   const ai = useSyncExternalStore(aiStore.subscribe, aiStore.get, aiStore.getServer);
@@ -34,15 +34,16 @@ export default function AiModeToggle() {
         openAiKey();
       }}
       title={!ai.apiKey ? "Turn on AI mode with your own free Gemini key" : on ? "AI mode is on (" + (ai.model || "Gemini") + ") - click to turn off, right-click for settings" : "AI mode is off - click to turn on"}
+      aria-busy={busy}
+      // Same frame as the other header buttons; on/off is carried by the logo
+      // (in colour when on, grey when off) and the label, nothing else.
       className={
-        "press relative flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold transition-colors " +
-        (on ? "border-[#4b8cf5]/40 bg-[#4b8cf5]/10 text-text" : "border-border bg-surface text-muted hover:border-border-strong hover:text-text")
+        "press flex h-8 items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 text-xs font-semibold hover:border-border-strong hover:text-text " +
+        (on ? "text-text" : "text-muted")
       }
     >
-      <GeminiStar size={14} className={on ? "" : "opacity-50 grayscale"} />
-      <span className="hidden sm:inline">AI</span>
-      {/* The logo stays still; the dot pulses blue while an analysis runs. */}
-      <span className={"h-1.5 w-1.5 rounded-full " + (busy ? "animate-pulse bg-[#4b8cf5]" : on ? "bg-ok" : "bg-border-strong")} aria-hidden />
+      <GeminiStar size={14} className={on ? "" : "opacity-40 grayscale"} />
+      <span className="hidden sm:inline">{on ? "AI on" : "AI"}</span>
     </button>
   );
 }
