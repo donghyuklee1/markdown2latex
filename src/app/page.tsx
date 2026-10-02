@@ -7,6 +7,7 @@ import LoginScreen from "@/components/account/LoginScreen";
 import AiKeyDialog from "@/components/ai/AiKeyDialog";
 import { ToastProvider } from "@/components/Toast";
 import AuthGate from "@/components/account/AuthGate";
+import PatchNotes from "@/components/PatchNotes";
 
 /**
  * Single-page workspace. Every transformation happens in the browser; there is
@@ -27,6 +28,7 @@ export default function Page() {
         <Onboarding />
         <LoginScreen />
         <AiKeyDialog />
+        <PatchNotes />
       </AuthGate>
     </ToastProvider>
   );

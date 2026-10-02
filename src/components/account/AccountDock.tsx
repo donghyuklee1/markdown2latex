@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { Cloud, CloudOff, History, Keyboard, Loader2, LogOut, Minus, Moon, Plus, RefreshCw, Sparkle, Sun, Trash2, UserRound, X } from "lucide-react";
+import { Cloud, CloudOff, History, Keyboard, Loader2, LogOut, Minus, Moon, Plus, RefreshCw, ScrollText, Sparkle, Sun, Trash2, UserRound, X } from "lucide-react";
+import { APP_VERSION } from "@/lib/changelog";
+import { openPatchNotes } from "../PatchNotes";
 import { initials } from "@/lib/account";
 import { aiStore, FONT_MAX, FONT_MIN, uiStore } from "@/lib/persistedStore";
 import { getThemeServerSnapshot, getThemeSnapshot, setTheme, subscribeToTheme } from "@/lib/theme";
@@ -156,6 +158,14 @@ function AccountMenu({ onClose }: { onClose: () => void }) {
         label="Keyboard shortcuts"
         onClick={() => {
           setShortcutsOpen(true);
+          onClose();
+        }}
+      />
+      <Row
+        icon={ScrollText}
+        label={"What's new in v" + APP_VERSION}
+        onClick={() => {
+          openPatchNotes();
           onClose();
         }}
       />

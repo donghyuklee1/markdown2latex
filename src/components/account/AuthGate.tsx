@@ -2,7 +2,10 @@
 
 import Image from "next/image";
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { AlertCircle, Check, ChevronLeft, ChevronRight, Loader2, Lock, Pause, Play } from "lucide-react";
+import { AlertCircle, Check, ChevronLeft, ChevronRight, Coffee, Loader2, Lock, Pause, Play, ScrollText } from "lucide-react";
+import { APP_VERSION, CHANGELOG } from "@/lib/changelog";
+import { SPONSOR_URL } from "@/lib/site";
+import PatchNotes, { openPatchNotes } from "../PatchNotes";
 import { AiArt, CleanArt, DerivationArt, PreviewArt, WorkflowArt } from "../onboarding/Onboarding";
 import ThemeToggle from "../ThemeToggle";
 import { accountStore, accountsEnabled, clearSignInError, initAccount } from "./cloud";
@@ -104,13 +107,14 @@ function Welcome() {
   const cancelled = acc.error && /denied|cancel/i.test(acc.error);
   return (
     <div className="themed flex min-h-screen flex-col bg-bg">
-      <header className="mx-auto flex w-full max-w-6xl items-center px-5 py-4">
-        <Logo />
-        <div className="ml-auto">
+      {/* The wordmark, large and centred; the theme switch tucked in the corner. */}
+      <header className="relative mx-auto flex w-full max-w-6xl items-center justify-center px-5 pb-2 pt-8 sm:pt-10">
+        <Logo className="h-11 sm:h-14" />
+        <div className="absolute right-5 top-5">
           <ThemeToggle />
         </div>
       </header>
-      <main className="mx-auto grid w-full max-w-6xl flex-1 items-center gap-8 px-5 pb-10 lg:grid-cols-[1.2fr_1fr] lg:gap-14">
+      <main className="mx-auto grid w-full max-w-6xl flex-1 items-center gap-8 px-5 py-8 lg:grid-cols-[1.2fr_1fr] lg:gap-14">
         <section className="order-2 animate-fade-in lg:order-1">
           <Manual />
         </section>
@@ -154,7 +158,35 @@ function Welcome() {
           </div>
         </section>
       </main>
+      <Footer />
+      <PatchNotes />
     </div>
+  );
+}
+
+/** Version, patch notes and the coffee link - small, quiet, centred. */
+function Footer() {
+  const latest = CHANGELOG[0];
+  return (
+    <footer className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-center gap-x-3 gap-y-2 px-5 pb-6 pt-2 text-[11.5px] text-faint">
+      <span>
+        <span className="font-mono font-semibold text-muted">v{APP_VERSION}</span>
+        <span className="mx-1.5">·</span>
+        {latest.title}
+      </span>
+      <span className="hidden h-3 w-px bg-border sm:block" aria-hidden />
+      <button type="button" onClick={openPatchNotes} className="press flex items-center gap-1 rounded-md px-1.5 py-0.5 font-medium text-muted hover:bg-surface-2 hover:text-text">
+        <ScrollText size={12} /> Patch notes
+      </button>
+      <a
+        href={SPONSOR_URL}
+        target="_blank"
+        rel="noreferrer noopener"
+        className="press flex items-center gap-1 rounded-full border border-accent/30 bg-accent/[0.06] px-2.5 py-0.5 font-medium text-accent transition-colors hover:border-accent hover:bg-accent hover:text-accent-ink"
+      >
+        <Coffee size={12} /> Buy me a coffee
+      </a>
+    </footer>
   );
 }
 

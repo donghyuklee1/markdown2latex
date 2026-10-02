@@ -442,7 +442,7 @@ supabase/migrations/          Accounts: row-level security, caps, Vault key, doc
 
 ```bash
 npm run verify     # lint + typecheck + tests + production build - run before pushing
-npm test           # 818 checks in 29 spec files: engine rules (each with a
+npm test           # 822 checks in 30 spec files: engine rules (each with a
                    # must-not-fire test), KaTeX rendering of every example and
                    # starter, every Tool and Studio feature, idempotence
 npm run examples   # regenerate examples/ (CI fails if it is stale)
