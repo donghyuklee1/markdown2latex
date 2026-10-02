@@ -500,7 +500,7 @@ export default function Workspace() {
       badge: diagnostics.length + issues.length,
       panel: <OutlinePanel blocks={mathBlocks} diagnostics={diagnostics} onSelect={selectLines} />,
     },
-    { id: "graph", label: "Formula graph", icon: Network, keys: "Alt+P", onClick: () => setUi({ tab: "graph", focus: ui.focus === "input" ? "none" : ui.focus }) },
+    { id: "graph", label: "Derivation notes", icon: Network, keys: "Alt+P", onClick: () => setUi({ tab: "graph", focus: ui.focus === "input" ? "none" : ui.focus }) },
     { id: "sandbox", label: "Shape sandbox", icon: Boxes, divider: true, onClick: () => openBench("sandbox") },
     { id: "units", label: "Unit checker", icon: Ruler, onClick: () => openBench("units") },
     { id: "sketch", label: "Sketch → TikZ", icon: PenTool, onClick: () => openBench("sketch") },

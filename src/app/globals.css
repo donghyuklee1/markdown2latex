@@ -650,3 +650,72 @@ html[data-resizing="y"] * {
     animation: none !important;
   }
 }
+
+/* --- Derivation notes: top-down tree ---------------------------------------
+ * An org chart drawn with borders: each child hangs from a shared bar under
+ * its parent, so a node's dependencies read as one bracket, not a web. */
+.dtree ul {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  padding-top: 20px;
+}
+.dtree > ul {
+  padding-top: 0;
+}
+.dtree li {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 8px 0;
+  list-style: none;
+}
+.dtree > ul > li {
+  padding-top: 0;
+}
+.dtree li::before,
+.dtree li::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 50%;
+  width: 50%;
+  height: 20px;
+  border-top: 1.5px solid rgb(var(--border-strong));
+}
+.dtree li::after {
+  right: auto;
+  left: 50%;
+  border-left: 1.5px solid rgb(var(--border-strong));
+}
+.dtree li:only-child::before,
+.dtree li:only-child::after {
+  border-top: 0;
+}
+.dtree li:only-child::before {
+  display: none;
+}
+.dtree li:first-child::before,
+.dtree li:last-child::after {
+  border: 0 none;
+}
+.dtree li:last-child::before {
+  border-right: 1.5px solid rgb(var(--border-strong));
+  border-radius: 0 8px 0 0;
+}
+.dtree li:first-child::after {
+  border-radius: 8px 0 0 0;
+}
+.dtree > ul > li::before,
+.dtree > ul > li::after {
+  display: none;
+}
+.dtree ul ul::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  height: 20px;
+  border-left: 1.5px solid rgb(var(--border-strong));
+}

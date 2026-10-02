@@ -11,7 +11,7 @@ CleanMath turns messy LLM-generated math into LaTeX that compiles on the first
 try. Next.js 16 App Router, React 19, single static page, Tailwind, KaTeX. There is no
 backend and there must never be one: no route handlers, no server actions, and
 no request that carries user text. Privacy is a product feature, not an
-implementation detail. There are exactly three exits, all deliberate and all
+implementation detail. There are exactly four exits, all deliberate and all
 triggered by an explicit click:
 
 - **Open in Overleaf** (`components/exporters.ts`) POSTs the document to
@@ -21,6 +21,10 @@ triggered by an explicit click:
 - **arXiv Formula Extractor** (`lab/panels/ArxivPanel.tsx`) fetches
   `https://arxiv.org/src/<id>` - the only thing sent is the paper ID the user
   typed. Use `/src/`, not `/e-print/`: the latter redirects without CORS headers.
+- **Derivation notes -> Analyze with Gemini** (`components/derivation/gemini.ts`)
+  sends the document to Google's Gemini API with the user's own key (stored in
+  their browser, sent as the `x-goog-api-key` header, never in a URL). The
+  answer is validated by `lib/derivation.ts` `mergeAi` before it is shown.
 
 Anything else that would send data off the page does not belong.
 

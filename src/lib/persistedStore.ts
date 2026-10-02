@@ -154,3 +154,17 @@ export const uiStore = createPersistedStore<UiPrefs>("cleanmath:ui:v1", DEFAULT_
 export const draftStore = createPersistedStore<string | null>("cleanmath:draft:v1", null, (raw) =>
   typeof raw === "string" ? raw : null,
 );
+
+/* -------------------------------------------------------------------- AI */
+
+export interface AiSettings {
+  /** The user's own Gemini API key; stays in this browser, sent only to Google. */
+  apiKey: string;
+  /** Chosen model id ("" = pick the newest Flash model the key can use). */
+  model: string;
+}
+
+export const aiStore = createPersistedStore<AiSettings>("cleanmath:ai:v1", { apiKey: "", model: "" }, (raw) => {
+  const r = (raw ?? {}) as Partial<AiSettings>;
+  return { apiKey: typeof r.apiKey === "string" ? r.apiKey : "", model: typeof r.model === "string" ? r.model : "" };
+});

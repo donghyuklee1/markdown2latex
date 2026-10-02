@@ -27,7 +27,7 @@ import MathColorPicker from "./MathColorPicker";
 import PaperPreview from "./PaperPreview";
 import type { StudioContext } from "./studio/types";
 
-const FormulaGraph = lazy(() => import("./studio/FormulaGraph"));
+const DerivationView = lazy(() => import("./derivation/DerivationView"));
 import { IconButton } from "./ui";
 
 interface Props {
@@ -276,7 +276,7 @@ const TABS: ReadonlyArray<{ id: Tab; label: string; icon: typeof Code2 }> = [
   { id: "code", label: "Clean LaTeX", icon: Code2 },
   { id: "preview", label: "Live Preview", icon: Eye },
   { id: "diff", label: "Diff", icon: GitCompareArrows },
-  { id: "graph", label: "Graph", icon: Network },
+  { id: "graph", label: "Derivation", icon: Network },
 ];
 
 export default function MathOutput({
@@ -402,7 +402,7 @@ export default function MathOutput({
               </div>
             }
           >
-            <FormulaGraph {...studio} />
+            <DerivationView {...studio} />
           </Suspense>
         ) : output || tab === "diff" ? (
           tab === "code" ? (

@@ -220,10 +220,16 @@ Every rule is conservative by design: each one has a test where it must fire
   flavour (environments kept inside `$$`), the preview as a PNG image (copied or
   downloaded), the snippet, or a complete `.tex` document.
 - **Scroll sync** - the output follows the editor as you scroll.
-- **Formula graph** - a fourth output tab. The *Flow* view lists every equation
-  in document order with arcs to the equations that use what it defines; select
-  one to light its lineage and jump to it in the editor. *Network* shows the
-  classic node-link graph for small documents.
+- **Derivation notes** - a fourth output tab that explains the maths, not just
+  its symbols. *Notes* groups the steps into foundations, derivation and
+  results - simple at a glance, a full explanation on hover. *Top-down* hangs
+  each derivation from its final result; *bottom-up* climbs from definitions
+  and assumptions to the result. Only direct dependencies are drawn (redundant
+  links are removed), so a chain stays a chain. *Variables* builds a booktabs
+  LaTeX notation table; *Ideas* maps the key ideas (exportable as TikZ).
+  It works offline from the text alone; **Analyze with Gemini** adds roles,
+  plain-language explanations and inferred definitions, using your own free
+  key from [Google AI Studio](https://aistudio.google.com/apikey).
 
 ### Studio Workbench
 
@@ -349,7 +355,7 @@ src/
 
 ```bash
 npm run verify     # lint + typecheck + tests + production build - run before pushing
-npm test           # 677 checks in 23 spec files: engine rules (each with a
+npm test           # 692 checks in 24 spec files: engine rules (each with a
                    # must-not-fire test), KaTeX rendering of every example and
                    # starter, every Tool and Studio feature, idempotence
 npm run examples   # regenerate examples/ (CI fails if it is stale)
@@ -362,10 +368,13 @@ There is no backend: no route handlers, no server actions, no analytics. Your
 text is parsed in your tab and stored only in your browser's `localStorage`.
 Share links carry the text in the URL fragment, which is never sent in a request.
 
-Two things are deliberate exceptions, and only happen when you click them:
-**Open in Overleaf** sends the document to Overleaf (that is the point of it), and
+A few things are deliberate exceptions, and only happen when you click them:
+**Open in Overleaf** sends the document to Overleaf (that is the point of it);
 **PNG export** loads this site's own KaTeX font files to draw the image - no text
-goes with that request.
+goes with that request; the **arXiv extractor** sends the paper ID to arxiv.org;
+and **Analyze with Gemini** sends the document to Google's Gemini API with *your*
+key, which stays in your browser (on Google's free tier, prompts may be used to
+improve their models).
 
 ## Roadmap
 
