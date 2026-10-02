@@ -7,7 +7,6 @@ import { APP_VERSION, CHANGELOG } from "@/lib/changelog";
 import { SPONSOR_URL } from "@/lib/site";
 import PatchNotes, { openPatchNotes } from "../PatchNotes";
 import { AiArt, CleanArt, DerivationArt, PreviewArt, WorkflowArt } from "../onboarding/Onboarding";
-import ThemeToggle from "../ThemeToggle";
 import { accountStore, accountsEnabled, clearSignInError, initAccount } from "./cloud";
 import { ProviderButtons } from "./LoginScreen";
 
@@ -36,8 +35,8 @@ function Manual() {
   const S = MANUAL[i];
   const go = (n: number) => setI((n + MANUAL.length) % MANUAL.length);
   return (
-    <div className="w-full" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
-      <div className="overflow-hidden rounded-2xl border border-border bg-surface shadow-xl shadow-black/5">
+    <div className="flex w-full" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
+      <div className="flex w-full flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-xl shadow-black/5">
         <div key={i} className="ob-enter-next">
           <div className="ob-stage relative h-[230px] overflow-hidden border-b border-border sm:h-[250px]">
             <S.art />
@@ -50,7 +49,7 @@ function Manual() {
             <p className="min-h-[66px] text-[13px] leading-relaxed text-muted">{S.body}</p>
           </div>
         </div>
-        <div className="flex items-center gap-3 px-6 pb-5 pt-1">
+        <div className="mt-auto flex items-center gap-3 px-6 pb-5 pt-1">
           <div className="flex flex-1 gap-1.5">
             {MANUAL.map((m, k) => (
               <button key={m.title} type="button" onClick={() => go(k)} aria-label={"Step " + (k + 1) + ": " + m.title} className="h-1.5 flex-1 overflow-hidden rounded-full bg-border">
@@ -107,19 +106,18 @@ function Welcome() {
   const cancelled = acc.error && /denied|cancel/i.test(acc.error);
   return (
     <div className="themed flex min-h-screen flex-col bg-bg">
-      {/* The wordmark, large and centred; the theme switch tucked in the corner. */}
-      <header className="relative mx-auto flex w-full max-w-6xl items-center justify-center px-5 pb-2 pt-8 sm:pt-10">
+      {/* The wordmark, large and centred over a symmetric two-column layout:
+          equal columns, cards filling them, so the gap between the cards sits
+          exactly under the middle of the logo. */}
+      <header className="flex w-full items-center justify-center px-5 pb-2 pt-8 sm:pt-10">
         <Logo className="h-11 sm:h-14" />
-        <div className="absolute right-5 top-5">
-          <ThemeToggle />
-        </div>
       </header>
-      <main className="mx-auto grid w-full max-w-6xl flex-1 items-center gap-8 px-5 py-8 lg:grid-cols-[1.2fr_1fr] lg:gap-14">
-        <section className="order-2 animate-fade-in lg:order-1">
+      <main className="mx-auto grid w-full max-w-6xl flex-1 content-center items-stretch gap-8 px-5 py-8 lg:grid-cols-2 lg:gap-10">
+        <section className="order-2 flex animate-fade-in lg:order-1">
           <Manual />
         </section>
-        <section className="order-1 lg:order-2">
-          <div className="ob-card mx-auto w-full max-w-[400px] rounded-2xl border border-border bg-surface p-7 shadow-2xl shadow-black/10">
+        <section className="order-1 flex lg:order-2">
+          <div className="ob-card mx-auto flex w-full max-w-[440px] flex-col justify-center rounded-2xl border border-border bg-surface p-7 shadow-2xl shadow-black/10 lg:max-w-none lg:px-10">
             <h1 className="text-2xl font-semibold leading-tight tracking-tight text-text">
               Paste messy LLM math.
               <br />
