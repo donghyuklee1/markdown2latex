@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { Columns2, FileDown, Image as ImageIcon, ListTree, Moon, MousePointerClick, Square, Sun } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { Columns2, FileDown, Image as ImageIcon, ListTree, Minus, Moon, MousePointerClick, Plus, Square, Sun } from "lucide-react";
 import { renderPaper, refText, type Block, type Paper, type Row, type Run } from "@/lib/texRender";
 import { BlockMath, InlineMath } from "./Katex";
 import { getPaletteServerSnapshot, getPaletteSnapshot, getThemeServerSnapshot, getThemeSnapshot, subscribeToTheme } from "@/lib/theme";
@@ -334,6 +334,7 @@ function printSheet(sheet: HTMLElement, title: string) {
   clone.classList.remove("paper-theme");
   // Print at a paper's own size, not the on-screen zoom.
   clone.style.fontSize = "";
+  clone.style.zoom = "";
   const frame = doc.createElement("table");
   frame.className = "print-frame";
   const section = (tag: "thead" | "tbody" | "tfoot", cls: string, content?: HTMLElement) => {
@@ -361,9 +362,14 @@ function printSheet(sheet: HTMLElement, title: string) {
 
 /* -------------------------------------------------------------- view */
 
+const ZOOMS = [0.5, 0.67, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
+const nearestZoom = (z: number) => ZOOMS.reduce((best, v, i) => (Math.abs(v - z) < Math.abs(ZOOMS[best] - z) ? i : best), 0);
+
 export default function PaperPreview({ body, full, fontSize, onSource, scrollerRef }: Props) {
   const paper = useMemo(() => renderPaper(body, full), [body, full]);
   const [cols, setCols] = useState<1 | 2>(1);
+  const [zoom, setZoom] = useState(1);
+  const zoomBy = (dir: 1 | -1) => setZoom((z) => ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, nearestZoom(z) + dir))]);
   const [ink, setInk] = useState<"paper" | "theme">("paper");
   const [tocOpen, setTocOpen] = useState(false);
   const [hover, setHover] = useState<Hover>(null);
@@ -373,6 +379,21 @@ export default function PaperPreview({ body, full, fontSize, onSource, scrollerR
   const theme = useSyncExternalStore(subscribeToTheme, getThemeSnapshot, getThemeServerSnapshot);
   const palette = useSyncExternalStore(subscribeToTheme, getPaletteSnapshot, getPaletteServerSnapshot);
   const mathColor = palette[theme]?.math ?? null;
+
+  // Ctrl/Cmd + scroll (and trackpad pinch, which arrives as ctrl+wheel) zooms
+  // the paper instead of the whole page; needs a non-passive listener.
+  useEffect(() => {
+    const desk = sheetRef.current?.parentElement;
+    if (!desk) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      const step = Math.max(-50, Math.min(50, e.deltaY)); // a mouse notch is ~100, a trackpad tick ~2
+      setZoom((z) => Math.min(2, Math.max(0.5, Math.round(z * Math.exp(-step * 0.003) * 100) / 100)));
+    };
+    desk.addEventListener("wheel", onWheel, { passive: false });
+    return () => desk.removeEventListener("wheel", onWheel);
+  }, []);
 
   const jump = (id: string) => {
     const el = sheetRef.current?.querySelector<HTMLElement>("#" + CSS.escape(id));
@@ -436,6 +457,17 @@ export default function PaperPreview({ body, full, fontSize, onSource, scrollerR
             <Columns2 size={12} />
           </button>
         </div>
+        <div className="flex items-center rounded-md border border-border bg-bg p-0.5" role="group" aria-label="Zoom">
+          <button type="button" onClick={() => zoomBy(-1)} disabled={zoom <= ZOOMS[0]} title="Zoom out (Ctrl/Cmd + scroll)" aria-label="Zoom out" className="press rounded px-1 py-0.5 hover:bg-surface-2 hover:text-text disabled:opacity-30">
+            <Minus size={12} />
+          </button>
+          <button type="button" onClick={() => setZoom(1)} title="Reset to 100%" className="press w-10 rounded py-0.5 text-center font-mono tabular-nums hover:bg-surface-2 hover:text-text">
+            {Math.round(zoom * 100)}%
+          </button>
+          <button type="button" onClick={() => zoomBy(1)} disabled={zoom >= ZOOMS[ZOOMS.length - 1]} title="Zoom in (Ctrl/Cmd + scroll)" aria-label="Zoom in" className="press rounded px-1 py-0.5 hover:bg-surface-2 hover:text-text disabled:opacity-30">
+            <Plus size={12} />
+          </button>
+        </div>
         <button
           type="button"
           onClick={() => setInk((v) => (v === "paper" ? "theme" : "paper"))}
@@ -463,7 +495,8 @@ export default function PaperPreview({ body, full, fontSize, onSource, scrollerR
       <div
         ref={sheetRef}
         className={"paper-sheet paper" + (cols === 2 ? " paper-cols-2" : "") + (ink === "theme" ? " paper-theme" : "")}
-        style={{ fontSize: fontSize + 2, ...(mathColor ? ({ "--paper-math": mathColor } as React.CSSProperties) : {}) }}
+        // Zoomed, the sheet keeps its page width and the desk scrolls, as in a PDF viewer.
+        style={{ fontSize: fontSize + 2, zoom, ...(zoom !== 1 ? { width: "50rem", maxWidth: "none" } : {}), ...(mathColor ? ({ "--paper-math": mathColor } as React.CSSProperties) : {}) }}
       >
         <BlocksView blocks={paper.blocks} paper={paper} onRef={onRef} onHover={setHover} onSource={onSource} />
         {paper.footnotes.length > 0 && (

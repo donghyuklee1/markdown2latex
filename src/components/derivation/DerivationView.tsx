@@ -1,7 +1,8 @@
 "use client";
 
 import { useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { ArrowUpRight, ChevronDown, ChevronRight, Copy, CornerDownLeft, KeyRound, Lightbulb, ListTree, Loader2, Network, NotebookText, Sparkles, Table2, X } from "lucide-react";
+import { ArrowUpRight, ChevronDown, ChevronRight, Copy, CornerDownLeft, KeyRound, Lightbulb, ListTree, Loader2, Network, NotebookText, Table2, X } from "lucide-react";
+import BrandMark, { GeminiStar } from "@/components/BrandMark";
 import { InlineMath } from "@/components/Katex";
 import { writeClipboard } from "@/components/exporters";
 import { useToast } from "@/components/Toast";
@@ -360,8 +361,8 @@ function IdeasView({ d, onAnalyze, steps }: { d: Derivation; onAnalyze: () => vo
       <div className="flex flex-col items-center gap-3 p-10 text-center text-sm text-faint">
         <Lightbulb size={24} />
         The idea map needs the AI analysis.
-        <button type="button" onClick={onAnalyze} className="press flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-accent-ink">
-          <Sparkles size={13} /> Analyze with Gemini
+        <button type="button" onClick={onAnalyze} className="press flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-text shadow-sm hover:border-[#4b8cf5]/60">
+          <GeminiStar size={15} /> Analyze with <BrandMark mark="gemini" height="1.05em" />
         </button>
       </div>
     );
@@ -453,7 +454,7 @@ function Settings({ onClose }: { onClose: () => void }) {
   return (
     <div className="absolute right-2 top-full z-40 mt-1 w-80 animate-pop-in space-y-2.5 rounded-xl border border-border bg-surface p-3.5 text-xs shadow-2xl" onClick={(e) => e.stopPropagation()}>
       <div className="flex items-center gap-1.5 font-semibold text-text">
-        <KeyRound size={13} className="text-accent" /> Gemini API key
+        <GeminiStar size={14} /> <BrandMark mark="gemini" height="1.05em" /> API key
         <button type="button" onClick={onClose} aria-label="Close" className="press ml-auto rounded p-0.5 text-faint hover:text-text">
           <X size={13} />
         </button>
@@ -581,9 +582,16 @@ export default function DerivationView({ input, selectLines, insert }: StudioCon
         <span className={"ml-auto rounded-full px-2 py-0.5 text-[10px] font-semibold " + (d.source === "ai" ? (outdated ? "bg-surface-2 text-faint" : "bg-accent/10 text-accent") : "bg-surface-2 text-faint")} title={d.source === "ai" ? "Explained by " + (ai.model || "Gemini") : "From the text alone - no AI"}>
           {d.source === "ai" ? (outdated ? "AI · outdated" : "AI") : "Offline"}
         </span>
-        <button type="button" onClick={() => void analyze()} disabled={busy} className="press flex items-center gap-1 rounded-lg bg-accent px-2.5 py-1 text-[11px] font-semibold text-accent-ink shadow-sm hover:bg-accent/90 disabled:opacity-60">
-          {busy ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-          {busy ? "Analyzing…" : d.source === "ai" && !outdated ? "Re-analyze" : "Analyze with Gemini"}
+        <button
+          type="button"
+          onClick={() => void analyze()}
+          disabled={busy}
+          title={"Explain this derivation with Gemini" + (ai.model ? " (" + ai.model + ")" : "")}
+          className="press flex items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-1 text-[11px] font-semibold text-text shadow-sm transition-colors hover:border-[#4b8cf5]/60 disabled:opacity-60"
+        >
+          {busy ? <Loader2 size={13} className="animate-spin text-[#4b8cf5]" /> : <GeminiStar size={13} />}
+          {busy ? "Analyzing…" : d.source === "ai" && !outdated ? "Re-analyze" : "Analyze with"}
+          {!busy && !(d.source === "ai" && !outdated) && <BrandMark mark="gemini" height="1.05em" />}
         </button>
         <button
           type="button"
