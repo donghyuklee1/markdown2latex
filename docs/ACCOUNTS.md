@@ -28,8 +28,8 @@ them to every device. The Gemini API key is never synced.
 ## Setup (once, about 10 minutes)
 
 1. **Create a Supabase project** at <https://supabase.com/dashboard> (free tier
-   is fine). In *SQL Editor*, paste and run
-   `supabase/migrations/20261002000000_accounts.sql`.
+   is fine). In *SQL Editor*, paste and run each file in
+   `supabase/migrations/`, oldest first.
 2. **URLs.** *Authentication -> URL Configuration*: set **Site URL** to
    `https://markdown2latex.vercel.app` and add these **Redirect URLs**:
    `https://markdown2latex.vercel.app/**`, `http://localhost:3000/**`.
@@ -49,7 +49,8 @@ them to every device. The Gemini API key is never synced.
    vercel env add NEXT_PUBLIC_SUPABASE_URL production       # https://<ref>.supabase.co
    vercel env add NEXT_PUBLIC_SUPABASE_ANON_KEY production  # the "anon public" key
    ```
-   These are public by design (they are in every page); row-level security is
+   Use the **publishable** key (`sb_publishable_...`) or the legacy "anon
+   public" key - never a secret or service-role key. These are public by design (they are in every page); row-level security is
    what protects the data. Redeploy - `NEXT_PUBLIC_*` values are built in.
 
 For local development put the same two lines in `.env.local`.

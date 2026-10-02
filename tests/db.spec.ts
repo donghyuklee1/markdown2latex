@@ -24,6 +24,8 @@ async function main() {
     insert into auth.users values ('00000000-0000-0000-0000-00000000000a'), ('00000000-0000-0000-0000-00000000000b');
   `);
   await db.exec(readFileSync(join(process.cwd(), "supabase", "migrations", "20261002000000_accounts.sql"), "utf8"));
+  await db.exec(`create role anon;`);
+  await db.exec(readFileSync(join(process.cwd(), "supabase", "migrations", "20261003000000_lock_functions.sql"), "utf8"));
   await db.exec(`grant select, insert, update, delete on all tables in schema public to authenticated;`);
   const A = "00000000-0000-0000-0000-00000000000a", B = "00000000-0000-0000-0000-00000000000b";
   const as = async (uid: string, sql: string, params?: unknown[]) => {
@@ -63,6 +65,15 @@ async function main() {
   ok("delete_my_data leaves others alone", ((await as(B, "select count(*)::int n from snapshots")).rows[0] as Row).n === 1 && ((await as(B, "select count(*)::int n from user_settings")).rows[0] as Row).n === 1);
   const plan = (await as(A, "explain select id from snapshots where user_id = auth.uid() order by created_at desc limit 30")).rows.map((r) => (r as Record<string, string>)["QUERY PLAN"]).join(" ");
   ok("history page query uses the (user_id, created_at) index", plan.includes("snapshots_user_recent"));
+  await db.exec("reset role; set role anon;");
+  let anonCalled = true;
+  try {
+    await db.query("select delete_my_data()");
+  } catch {
+    anonCalled = false;
+  }
+  await db.exec("reset role;");
+  ok("anonymous callers cannot run delete_my_data", !anonCalled);
   finish("db");
 }
 void main();
