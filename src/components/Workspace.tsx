@@ -51,6 +51,7 @@ import {
 } from "@/lib/persistedStore";
 import { useAutoAnalysis } from "./ai/orchestrator";
 import ImageConvert from "./ai/ImageConvert";
+import SelectionAssist from "./selection/SelectionAssist";
 import { decodeShare, encodeShare, SHARE_MAX_CHARS, SHARE_PREFIX } from "@/lib/share";
 import { matchShortcut, type ShortcutId } from "@/lib/shortcuts";
 import { getThemeSnapshot, setTheme } from "@/lib/theme";
@@ -345,6 +346,22 @@ export default function Workspace() {
     [ui.focus, ui.fontSize, setUi],
   );
 
+  /** Select an exact character range in the editor and bring it into view. */
+  const selectRange = useCallback(
+    (start: number, end: number) => {
+      if (ui.focus === "output") setUi({ focus: "none" });
+      window.requestAnimationFrame(() => {
+        const ta = editorRef.current;
+        if (!ta) return;
+        ta.focus({ preventScroll: true });
+        ta.setSelectionRange(start, end);
+        const line = ta.value.slice(0, start).split("\n").length;
+        ta.scrollTo({ top: Math.max(0, (line - 1) * Math.round(ui.fontSize * 1.85) - 72), behavior: "smooth" });
+      });
+    },
+    [ui.focus, ui.fontSize, setUi],
+  );
+
   const insertText = useCallback(
     (text: string) => {
       const previous = input;
@@ -567,6 +584,16 @@ export default function Workspace() {
     // The rails sit in the side margins a wide screen leaves empty: the row is
     // widened by exactly their width, so the panes keep their size.
     <MacroContext.Provider value={macros}>
+    <SelectionAssist
+      input={input}
+      output={output}
+      blocks={mathBlocks}
+      options={options}
+      editorRef={editorRef}
+      selectRange={selectRange}
+      selectLines={selectLines}
+      setInput={setInput}
+    />
     <ImageConvert
       insert={insertBlock}
       replace={(text) => replaceInput(text, "Converted an image")}

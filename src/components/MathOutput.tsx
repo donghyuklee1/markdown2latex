@@ -1,6 +1,7 @@
 "use client";
 
-import { lazy, Suspense, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { outputHighlight } from "./selection/outputHighlight";
 import { BlockMath, InlineMath } from "./Katex";
 import {
   ArrowDownUp,
@@ -71,15 +72,30 @@ type Scroller = React.RefObject<HTMLDivElement | null>;
 
 function CodeView({ output, fontSize, wrap, scrollerRef }: { output: string; fontSize: number; wrap: boolean; scrollerRef: Scroller }) {
   const lines = useMemo(() => output.split("\n"), [output]);
+  // The selection toolbar's "show in output": tint those lines, bring them into view.
+  const hl = useSyncExternalStore(outputHighlight.subscribe, outputHighlight.get, outputHighlight.getServer);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!hl) return;
+    box.current?.querySelector<HTMLElement>('[data-line="' + (hl.from - 1) + '"]')?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const t = window.setTimeout(() => outputHighlight.clear(), 2600);
+    return () => window.clearTimeout(t);
+  }, [hl]);
 
   return (
     <div ref={scrollerRef} className="scroll-slim h-full overflow-auto">
       <div
+        ref={box}
+        data-output-code
         className={"py-3 font-mono " + (wrap ? "" : "min-w-max")}
         style={{ fontSize, lineHeight: Math.round(fontSize * 1.85) + "px" }}
       >
         {lines.map((line, idx) => (
-          <div key={idx} className="group flex hover:bg-surface-2">
+          <div
+            key={idx}
+            data-line={idx}
+            className={"group flex transition-colors duration-500 hover:bg-surface-2 " + (hl && idx + 1 >= hl.from && idx + 1 <= hl.to ? "bg-accent/15" : "")}
+          >
             <span className="w-11 shrink-0 select-none pr-2 text-right text-faint">{idx + 1}</span>
             <code
               className={"flex-1 pr-4 text-text " + (wrap ? "whitespace-pre-wrap break-all" : "whitespace-pre")}

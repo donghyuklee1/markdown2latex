@@ -15,6 +15,18 @@ export interface Release {
 
 export const CHANGELOG: ReadonlyArray<Release> = [
   {
+    version: "1.4.0",
+    date: "2026-10-03",
+    title: "Selection assistant and figure preview",
+    notes: [
+      "Selection toolbar in the editor and the output: locate the counterpart, meaning, connections, preview.",
+      "Source-to-output correspondence by maths block, with whitespace-tolerant matching.",
+      "Symbol connections: which equations define and use the selected quantities.",
+      "Figure Optimizer: live before/after preview at the chosen DPI, layout and quality.",
+      "Derivation explanations transition smoothly between steps.",
+    ],
+  },
+  {
     version: "1.3.0",
     date: "2026-10-03",
     title: "Account-scoped workspaces and document sync",

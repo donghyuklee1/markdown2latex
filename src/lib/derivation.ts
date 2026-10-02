@@ -204,7 +204,7 @@ export function namesIn(latex: string): string[] {
 const RELATION = /(?<![<>!:])(?:=|\\approx|\\equiv|\\coloneqq|\\triangleq|:=|\\propto|\\simeq)/;
 
 /** Left side of the first relation defines, everything else is used. */
-function definesAndUses(latex: string): { defines: string[]; uses: string[] } {
+export function definesAndUses(latex: string): { defines: string[]; uses: string[] } {
   const first = latex.split(/\\implies|\\Rightarrow|\\\\|\\quad/)[0];
   const m = RELATION.exec(first);
   if (!m) return { defines: [], uses: namesIn(latex) };
@@ -658,4 +658,77 @@ export function normalizeEquation(latex: string): string {
 export function analysisKey(input: string, hash: (s: string) => string): string {
   const eqs = offlineModel(input).steps.map((s) => normalizeEquation(s.latex));
   return hash(eqs.length ? "eq:" + eqs.join("\n") : "txt:" + input.trim());
+}
+
+/* ------------------------------------------------------ selection help */
+
+export interface Connection {
+  step: Step;
+  role: "defines" | "uses";
+  symbols: string[];
+}
+
+/** The steps that define or use any of `names` (subscripts as namesIn writes them). */
+export function connectionsFor(names: ReadonlyArray<string>, d: Derivation): Connection[] {
+  if (!names.length) return [];
+  const want = new Set(names);
+  const out: Connection[] = [];
+  for (const step of d.steps) {
+    if (!step.latex) continue;
+    const { defines, uses } = definesAndUses(step.latex);
+    const def = defines.filter((n) => want.has(n));
+    const use = uses.filter((n) => want.has(n));
+    if (def.length) out.push({ step, role: "defines", symbols: def });
+    else if (use.length) out.push({ step, role: "uses", symbols: use });
+  }
+  return out;
+}
+
+/** The step whose source lines contain a line, if any. */
+export function stepAtLine(d: Derivation, line: number): Step | null {
+  return d.steps.find((s) => s.lines && line >= s.lines[0] && line <= s.lines[1]) ?? null;
+}
+
+export const EXPLAIN_SCHEMA = {
+  type: "object",
+  properties: {
+    meaning: { type: "string" },
+    symbols: { type: "array", items: { type: "object", properties: { symbol: { type: "string" }, meaning: { type: "string" } }, required: ["symbol", "meaning"] } },
+  },
+  required: ["meaning", "symbols"],
+};
+
+/** Ask what a selected piece of maths means, in the context of its document. */
+export function explainRequest(selection: string, doc: string, model = "", thinking = true): object {
+  const at = doc.indexOf(selection);
+  const ctx = at >= 0 ? doc.slice(Math.max(0, at - 3000), at + selection.length + 3000) : doc.slice(0, 6000);
+  const think = thinking ? thinkingConfig(model) : undefined;
+  const prompt = [
+    "Explain briefly what the SELECTION means in this document, for a reader who wants to understand it.",
+    "meaning: 2-3 plain sentences - what it says or computes, and its role here. Maths inline as $...$.",
+    "symbols: each symbol in the selection with a short meaning (under 10 words), from the document or inferred.",
+    "Answer in the language of the document's prose. Output JSON only.",
+    "",
+    "SELECTION:",
+    selection.slice(0, 2000),
+    "",
+    "DOCUMENT (excerpt):",
+    ctx,
+  ].join("\n");
+  return {
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    generationConfig: { temperature: 0.2, responseMimeType: "application/json", responseSchema: geminiSchema(EXPLAIN_SCHEMA), ...(think ? { thinkingConfig: think } : {}) },
+  };
+}
+
+export function parseExplain(raw: unknown): { meaning: string; symbols: Array<{ symbol: string; meaning: string }> } | null {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const meaning = typeof r.meaning === "string" ? r.meaning.trim().slice(0, 800) : "";
+  if (!meaning) return null;
+  const symbols = (Array.isArray(r.symbols) ? r.symbols : [])
+    .map((x) => x as Record<string, unknown>)
+    .filter((x) => typeof x.symbol === "string" && typeof x.meaning === "string" && x.symbol && x.meaning)
+    .slice(0, 12)
+    .map((x) => ({ symbol: String(x.symbol).slice(0, 60), meaning: String(x.meaning).slice(0, 160) }));
+  return { meaning, symbols };
 }

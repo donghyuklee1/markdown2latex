@@ -1,6 +1,6 @@
 "use client";
 
-import { useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ArrowUpRight, ChevronDown, ChevronRight, Copy, CornerDownLeft, KeyRound, Lightbulb, ListTree, Loader2, Network, NotebookText, Table2, X } from "lucide-react";
 import BrandMark, { GeminiStar } from "@/components/BrandMark";
 import { InlineMath } from "@/components/Katex";
@@ -59,7 +59,8 @@ function Badge({ kind }: { kind: StepKind }) {
   return <span className={"rounded px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide " + KIND[kind].cls}>{KIND[kind].label}</span>;
 }
 
-type HoverState = { step: Step; x: number; y: number } | null;
+/** The card under the cursor: where it is, so the explanation can sit beside it. */
+type HoverState = { step: Step; x: number; top: number; bottom: number } | null;
 
 function StepCard({
   step,
@@ -78,22 +79,22 @@ function StepCard({
   className?: string;
   style?: React.CSSProperties;
 }) {
-  const timer = useRef<number | undefined>(undefined);
   return (
     <button
       type="button"
       onClick={() => onPick(step)}
       onMouseEnter={(e) => {
         const r = e.currentTarget.getBoundingClientRect();
-        window.clearTimeout(timer.current);
-        timer.current = window.setTimeout(() => onHover({ step, x: r.left + r.width / 2, y: r.bottom }), 220);
+        onHover({ step, x: r.left + r.width / 2, top: r.top, bottom: r.bottom });
       }}
-      onMouseLeave={() => {
-        window.clearTimeout(timer.current);
-        onHover(null);
+      onMouseLeave={() => onHover(null)}
+      onFocus={(e) => {
+        const r = e.currentTarget.getBoundingClientRect();
+        onHover({ step, x: r.left + r.width / 2, top: r.top, bottom: r.bottom });
       }}
+      onBlur={() => onHover(null)}
       className={
-        "press-soft group flex flex-col gap-1 rounded-xl border bg-surface px-3 py-2 text-left shadow-sm transition-[opacity,border-color,box-shadow] duration-200 hover:border-accent/50 hover:shadow-md " +
+        "press-soft group flex flex-col gap-1 rounded-xl border bg-surface px-3 py-2 text-left shadow-sm transition-[opacity,border-color,box-shadow,transform] duration-200 ease-out hover:-translate-y-0.5 hover:border-accent/50 hover:shadow-md " +
         (step.kind === "final" ? "border-accent/40 " : "border-border ") +
         (dim ? "opacity-30 " : "") +
         className
@@ -118,35 +119,88 @@ function StepCard({
   );
 }
 
-/** The detailed explanation, floating next to the card under the cursor. */
-function Explain({ hover, steps }: { hover: HoverState; steps: Map<string, Step> }) {
-  if (!hover) return null;
-  const s = hover.step;
-  const left = Math.min(Math.max(hover.x, 210), (typeof window !== "undefined" ? window.innerWidth : 1200) - 210);
+/**
+ * The card's full explanation, beside it. It fades and slides in after a short
+ * pause, glides from card to card while the cursor moves between them (no
+ * flicker on the gaps), and fades out a moment after the cursor leaves. Near
+ * the bottom of the window it opens above the card instead.
+ */
+function useExplain(): [ExplainState, (h: HoverState) => void] {
+  const [tip, setTip] = useState<ExplainState>({ hover: null, open: false });
+  const timer = useRef<number | undefined>(undefined);
+  const openNow = useRef(false);
+  const onHover = useCallback((h: HoverState) => {
+    window.clearTimeout(timer.current);
+    if (h) {
+      // Already showing one: move straight to the next card. Otherwise a short pause.
+      timer.current = window.setTimeout(
+        () => {
+          openNow.current = true;
+          setTip({ hover: h, open: true });
+        },
+        openNow.current ? 40 : 280,
+      );
+    } else {
+      timer.current = window.setTimeout(() => {
+        openNow.current = false;
+        setTip((t) => ({ ...t, open: false }));
+      }, 140);
+    }
+  }, []);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  return [tip, onHover];
+}
+
+interface ExplainState {
+  hover: HoverState;
+  open: boolean;
+}
+
+function Explain({ tip, steps }: { tip: ExplainState; steps: Map<string, Step> }) {
+  const h = tip.hover;
+  if (!h) return null;
+  const s = h.step;
+  const vw = typeof window !== "undefined" ? window.innerWidth : 1200;
+  const vh = typeof window !== "undefined" ? window.innerHeight : 800;
+  const left = Math.min(Math.max(h.x, 210), vw - 210);
+  const above = h.bottom + 280 > vh && h.top > 300;
   return (
-    <div className="pointer-events-none fixed z-50 w-[400px] max-w-[92vw] -translate-x-1/2 animate-pop-in rounded-xl border border-border bg-surface p-3.5 shadow-2xl shadow-black/20" style={{ left, top: hover.y + 8 }}>
-      <div className="mb-1.5 flex items-center gap-1.5">
-        <Badge kind={s.kind} />
-        <span className="text-sm font-semibold text-text">{s.title}</span>
-        {s.label && <span className="ml-auto font-mono text-[10px] text-faint">{s.label}</span>}
+    <div
+      aria-hidden={!tip.open}
+      className={
+        "pointer-events-none fixed z-50 w-[400px] max-w-[92vw] rounded-xl border border-border bg-surface p-3.5 shadow-2xl shadow-black/20 transition-[opacity,transform,left,top] duration-200 ease-out " +
+        (tip.open ? "opacity-100" : "opacity-0")
+      }
+      style={{
+        left,
+        top: above ? h.top - 10 : h.bottom + 10,
+        transform: "translateX(-50%) translateY(" + (above ? "-100%" : "0") + ") " + (tip.open ? "" : above ? "translateY(6px) scale(0.98)" : "translateY(-6px) scale(0.98)"),
+      }}
+    >
+      <div key={s.id} className="animate-fade-in">
+        <div className="mb-1.5 flex items-center gap-1.5">
+          <Badge kind={s.kind} />
+          <span className="text-sm font-semibold text-text">{s.title}</span>
+          {s.label && <span className="ml-auto font-mono text-[10px] text-faint">{s.label}</span>}
+        </div>
+        {s.latex && (
+          <div className="mb-2 overflow-x-auto rounded-lg bg-bg px-2 py-1.5 text-[14px] text-text">
+            <InlineMath math={"\\displaystyle " + s.latex} renderError={() => <code className="text-[11px]">{s.latex}</code>} />
+          </div>
+        )}
+        <MathText text={s.explanation || s.summary} className="block text-[12.5px] leading-relaxed text-text" />
+        {s.uses.length > 0 && (
+          <div className="mt-2 flex flex-wrap items-center gap-1 text-[11px] text-faint">
+            builds on
+            {s.uses.map((u) => (
+              <span key={u} className="rounded-md bg-surface-2 px-1.5 py-0.5 text-muted">
+                {steps.get(u)?.title ?? u}
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="mt-2 text-[10px] text-faint">Click the card to show it in the editor.</div>
       </div>
-      {s.latex && (
-        <div className="mb-2 overflow-x-auto rounded-lg bg-bg px-2 py-1.5 text-[14px] text-text">
-          <InlineMath math={"\\displaystyle " + s.latex} renderError={() => <code className="text-[11px]">{s.latex}</code>} />
-        </div>
-      )}
-      <MathText text={s.explanation || s.summary} className="block text-[12.5px] leading-relaxed text-text" />
-      {s.uses.length > 0 && (
-        <div className="mt-2 flex flex-wrap items-center gap-1 text-[11px] text-faint">
-          builds on
-          {s.uses.map((u) => (
-            <span key={u} className="rounded-md bg-surface-2 px-1.5 py-0.5 text-muted">
-              {steps.get(u)?.title ?? u}
-            </span>
-          ))}
-        </div>
-      )}
-      <div className="mt-2 text-[10px] text-faint">Click the card to show it in the editor.</div>
     </div>
   );
 }
@@ -433,7 +487,7 @@ export default function DerivationView({ input, selectLines, insert }: StudioCon
   const run = useSyncExternalStore(runStore.subscribe, runStore.get, runStore.getServer);
   const store = useSyncExternalStore(analysisStore.subscribe, analysisStore.get, analysisStore.getServer);
   const [view, setView] = useState<View>("notes");
-  const [hover, setHover] = useState<HoverState>(null);
+  const [tip, setHover] = useExplain();
   const toast = useToast();
 
   // The cache key is the mathematics, normalized: prose edits keep the analysis.
@@ -524,7 +578,7 @@ export default function DerivationView({ input, selectLines, insert }: StudioCon
           <IdeasView d={d} onAnalyze={() => void analyze()} steps={steps} />
         )}
       </div>
-      <Explain hover={hover} steps={steps} />
+      <Explain tip={tip} steps={steps} />
     </div>
   );
 }

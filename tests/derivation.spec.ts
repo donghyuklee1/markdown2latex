@@ -1,5 +1,5 @@
 import { check, finish } from "./harness";
-import { bottomUp, buildPrompt, fallbackModels, modelFamily, geminiRequest, mergeAi, namesIn, offlineModel, reduceEdges, rejectsThinking, thinkingConfig, topDown, variablesTable, type Step } from "../src/lib/derivation";
+import { bottomUp, buildPrompt, connectionsFor, explainRequest, parseExplain, stepAtLine, fallbackModels, modelFamily, geminiRequest, mergeAi, namesIn, offlineModel, reduceEdges, rejectsThinking, thinkingConfig, topDown, variablesTable, type Step } from "../src/lib/derivation";
 
 const SRC = String.raw`The critical field:
 $$E_{crit} = \frac{q N_a W_{BR}}{\epsilon_s}$$
@@ -76,4 +76,13 @@ const ranked = M("gemini-3.8-flash", "gemini-3.8-flash-001", "gemini-3.8-flash-p
 check("busy model: skip its siblings, then one per other family", fallbackModels("gemini-3.8-flash", ranked).join(" "), "gemini-3.8-flash gemini-3.5-flash gemini-2.5-flash gemini-2.0-flash gemini-3.8-flash-lite");
 check("family of a model", JSON.stringify([modelFamily("gemini-2.5-flash-001"), modelFamily("gemini-2.5-flash-lite")].map((f) => f.key)), '["2.5:flash","2.5:lite"]');
 check("non-Gemini names are never fallbacks", fallbackModels("gemini-3.8-flash", M("learnlm-2.0", "gemma-3")).join(" "), "gemini-3.8-flash");
+
+/* --- selection help ------------------------------------------------------------- */
+const links = connectionsFor(["V_{BR}"], d);
+check("connections: who defines and who uses a symbol", links.map((l) => l.step.id + ":" + l.role).join(" "), "s2:defines s3:uses");
+check("connections: nothing selected, nothing found", String(connectionsFor([], d).length), "0");
+check("the step at a line", stepAtLine(d, 4)?.id ?? "none", "s2");
+const ex = explainRequest("E_{crit}", SRC, "gemini-3.8-flash") as { contents: Array<{ parts: Array<{ text: string }> }>; generationConfig: Record<string, unknown> };
+check("explain: the selection and its context go in, JSON comes out", [ex.contents[0].parts[0].text.includes("SELECTION:\nE_{crit}"), ex.generationConfig.responseMimeType].join(" "), "true application/json");
+check("explain: answers are validated", JSON.stringify([parseExplain({ meaning: " The field. ", symbols: [{ symbol: "E", meaning: "field" }, { symbol: 3 }] }), parseExplain({ meaning: "" })]), '[{"meaning":"The field.","symbols":[{"symbol":"E","meaning":"field"}]},null]');
 finish("derivation");

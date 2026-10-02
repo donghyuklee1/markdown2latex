@@ -261,6 +261,11 @@ Every rule is conservative by design: each one has a test where it must fire
   quantum, ML to complex analysis - all searchable), automatic history
   snapshots, and on the right an equation outline with error badges and the
   Workbench tools.
+- **Selection toolbar** - select text in the editor or the output and a small
+  toolbar appears: jump to the matching part of the other pane, see what the
+  selection means (definitions, its derivation step, a Gemini explanation on
+  request) and which equations define or use its symbols, preview it, copy it
+  clean, wrap it in `$...$` or save it as a snippet.
 - **Smart insertion** - a symbol or snippet inserted into prose is wrapped so it
   renders (`$\alpha$` inline, a snippet as its own `$$` block); inside maths it
   goes in bare. Select text first to wrap it (`x` -> `\hat{x}`).
@@ -442,7 +447,7 @@ supabase/migrations/          Accounts: row-level security, caps, Vault key, doc
 
 ```bash
 npm run verify     # lint + typecheck + tests + production build - run before pushing
-npm test           # 822 checks in 30 spec files: engine rules (each with a
+npm test           # 835 checks in 31 spec files: engine rules (each with a
                    # must-not-fire test), KaTeX rendering of every example and
                    # starter, every Tool and Studio feature, idempotence
 npm run examples   # regenerate examples/ (CI fails if it is stale)

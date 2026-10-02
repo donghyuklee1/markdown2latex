@@ -6,7 +6,8 @@ import { SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE, SITE_URL, THEME_COLORS } fro
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: { default: SITE_NAME + " - " + SITE_TAGLINE, template: "%s | " + SITE_NAME },
+  // The browser tab reads simply "markdown2latex"; the tagline stays in the share cards.
+  title: { default: "markdown2latex", template: "%s | markdown2latex" },
   description: SITE_DESCRIPTION,
   applicationName: SITE_NAME,
   keywords: ["LaTeX", "KaTeX", "Overleaf", "Obsidian", "ChatGPT", "Claude", "markdown", "math", "converter"],
