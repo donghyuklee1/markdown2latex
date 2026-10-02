@@ -358,7 +358,7 @@ src/
 
 ```bash
 npm run verify     # lint + typecheck + tests + production build - run before pushing
-npm test           # 759 checks in 27 spec files: engine rules (each with a
+npm test           # 769 checks in 28 spec files: engine rules (each with a
                    # must-not-fire test), KaTeX rendering of every example and
                    # starter, every Tool and Studio feature, idempotence
 npm run examples   # regenerate examples/ (CI fails if it is stale)
@@ -369,7 +369,8 @@ npm run logos      # rebuild the logo PNGs from static/logo-source.png
 
 Everything runs in your browser, with no analytics. Your text is parsed in your
 tab and stored in your browser's `localStorage`. Accounts are optional: if you
-sign in with Google or GitHub (the circle at the bottom left), your history,
+sign in with Google or GitHub (**Sign in** at the top right; afterwards your
+profile picture sits in the circle at the bottom left), your history,
 analyses and preferences also sync to your account so they follow you to other
 devices - never your Gemini key - and "Delete cloud data" removes them.
 Share links carry the text in the URL fragment, which is never sent in a request.
@@ -393,7 +394,8 @@ free [Google AI Studio](https://aistudio.google.com/apikey) key as the
 `GEMINI_DAILY_LIMIT` (default 400) caps shared analyses per day. Without a key
 the site still works, and visitors can paste their own. See `.env.example`.
 
-Sign-in with Google and GitHub, and cloud history, use Supabase: one SQL file
+The first sign-in opens a short animated tour of the app (replay it any time
+from the account menu). Sign-in with Google and GitHub, and cloud history, use Supabase: one SQL file
 and two public env vars, set up in about ten minutes - see
 [docs/ACCOUNTS.md](docs/ACCOUNTS.md), which also explains how it stays fast as
 users grow (browser-direct, per-user indexed rows, row-level security, local-first

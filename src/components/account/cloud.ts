@@ -36,11 +36,17 @@ export interface AccountState {
   status: "disabled" | "idle" | "loading" | "signed-in";
   profile: Profile | null;
   sync: { state: "idle" | "syncing" | "error" | "offline"; at: number | null; pending: number };
+  /** The account's synced preferences have been pulled at least once this session. */
+  ready: boolean;
+  /** Set once when the user arrives back from Google/GitHub signed in (not a restored session). */
+  justSignedIn: boolean;
+  /** Why the last sign-in failed (the provider's message), or null. */
+  error: string | null;
 }
 
 /* ------------------------------------------------------------ store */
 
-let state: AccountState = { status: accountsEnabled ? "idle" : "disabled", profile: null, sync: { state: "idle", at: null, pending: 0 } };
+let state: AccountState = { status: accountsEnabled ? "idle" : "disabled", profile: null, sync: { state: "idle", at: null, pending: 0 }, ready: false, justSignedIn: false, error: null };
 const SERVER_STATE = state;
 const listeners = new Set<() => void>();
 const emit = (patch: Partial<AccountState>) => {
@@ -83,7 +89,20 @@ export function initAccount(): void {
   if (!accountsEnabled || started || typeof window === "undefined") return;
   const returning = /[?&]code=/.test(window.location.search) || /[?&]error_description=/.test(window.location.search);
   if (!returning && !hasStoredSession()) return;
+  cameBack = /[?&]code=/.test(window.location.search);
   void connect();
+}
+
+/** The page was opened by the provider's redirect (so a session now is a fresh sign-in). */
+let cameBack = false;
+
+/** The welcome has been shown; clear the flag. */
+export function ackSignIn(): void {
+  if (state.justSignedIn) emit({ justSignedIn: false });
+}
+
+export function clearSignInError(): void {
+  if (state.error) emit({ error: null });
 }
 
 async function connect(): Promise<SupabaseClient> {
@@ -97,26 +116,36 @@ async function connect(): Promise<SupabaseClient> {
       if (session?.user) {
         const profile = profileFrom(session.user);
         const fresh = state.profile?.id !== profile?.id;
-        emit({ status: "signed-in", profile });
+        emit({ status: "signed-in", profile, error: null, justSignedIn: fresh && cameBack });
         if (fresh) void startSync(sb);
       } else if (event === "SIGNED_OUT" || event === "INITIAL_SESSION") {
         stopSync();
-        emit({ status: "idle", profile: null, sync: { state: "idle", at: null, pending: 0 } });
+        emit({ status: "idle", profile: null, sync: { state: "idle", at: null, pending: 0 }, ready: false });
       }
     }, 0);
   });
-  // Back from the provider: drop ?code=... from the address bar.
+  // Back from the provider: drop ?code=... from the address bar. A refusal
+  // ("access_denied" when the user cancels) comes back as error_description.
   if (/[?&](code|error|error_description)=/.test(window.location.search)) {
-    const err = new URLSearchParams(window.location.search).get("error_description");
+    const params = new URLSearchParams(window.location.search);
+    const err = params.get("error_description") ?? params.get("error");
     window.history.replaceState(null, "", window.location.pathname + window.location.hash);
-    if (err) emit({ status: "idle" });
+    if (err) emit({ status: "idle", error: err.replace(/\+/g, " ") });
   }
   return sb;
 }
 
+/** The provider used last in this browser, offered first next time. */
+export const LAST_PROVIDER_KEY = "cleanmath:last-provider:v1";
+
 export async function signIn(provider: Provider): Promise<void> {
+  try {
+    window.localStorage.setItem(LAST_PROVIDER_KEY, provider);
+  } catch {
+    // Not remembered - harmless.
+  }
   const sb = await connect();
-  emit({ status: "loading" });
+  emit({ status: "loading", error: null });
   const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo: window.location.origin + window.location.pathname } });
   if (error) {
     emit({ status: "idle" });
@@ -169,6 +198,7 @@ function scheduleFlush(ms = 4000) {
 async function flush(): Promise<void> {
   if (state.status !== "signed-in") return;
   const sb = await client();
+  let sent = false;
   for (let batch = queue.next(Date.now()); batch; batch = queue.next(Date.now())) {
     setSync({ state: "syncing" });
     const { error } = await sb.from("snapshots").upsert(batch, { onConflict: "user_id,text_hash", ignoreDuplicates: true });
@@ -179,8 +209,10 @@ async function flush(): Promise<void> {
       return;
     }
     queue.done(batch);
+    sent = true;
   }
-  setSync({ state: "idle", at: Date.now() });
+  // Nothing to send says nothing about the connection: keep a known error.
+  if (sent || (state.sync.state !== "error" && state.sync.state !== "offline")) setSync({ state: "idle", at: Date.now() });
 }
 
 /** Write remote preferences into this browser; the stores re-read on the storage event. */
@@ -205,7 +237,11 @@ function applySettings(remote: Settings) {
 
 async function pullSettings(sb: SupabaseClient, initial: boolean) {
   const { data, error } = await sb.from("user_settings").select("settings, updated_at").maybeSingle();
-  if (error) return;
+  if (error) {
+    setSync({ state: navigator.onLine ? "error" : "offline" });
+    return;
+  }
+  if (state.sync.state === "error" || state.sync.state === "offline") setSync({ state: "idle", at: Date.now() });
   if (data) {
     const at = Date.parse(data.updated_at as string) || 0;
     if (initial || at > settingsAt) {
@@ -240,7 +276,11 @@ function onLocalSettings() {
 async function startSync(sb: SupabaseClient) {
   stopSync();
   setSync({ state: "syncing" });
-  await pullSettings(sb, true);
+  emit({ ready: false });
+  // The welcome tour waits for this (another device may have seen it already),
+  // but never longer than a moment on a slow network.
+  await Promise.race([pullSettings(sb, true), new Promise((r) => setTimeout(r, 2500))]);
+  emit({ ready: true });
 
   // Everything already in local history goes up once (duplicates are ignored).
   queue.add(historyStore.get());

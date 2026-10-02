@@ -719,3 +719,51 @@ html[data-resizing="y"] * {
   height: 20px;
   border-left: 1.5px solid rgb(var(--border-strong));
 }
+
+/* --- Onboarding tour ---------------------------------------------------------
+ * Each slide remounts when shown, so these play on every visit to a slide.
+ * Reduced motion collapses them to the end state (rule above). */
+.ob-stage {
+  background:
+    radial-gradient(circle at 20% 0%, rgb(var(--accent) / 0.1), transparent 55%),
+    radial-gradient(circle at 100% 100%, rgb(var(--accent) / 0.06), transparent 50%),
+    rgb(var(--surface-2) / 0.5);
+}
+.ob-card { animation: ob-card 260ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+.ob-enter-next { animation: ob-in-next 280ms ease-out both; }
+.ob-enter-prev { animation: ob-in-prev 280ms ease-out both; }
+.ob-slide-l { animation: ob-in-prev 420ms ease-out both; }
+.ob-slide-r { animation: ob-in-next 420ms 200ms ease-out both; }
+.ob-arrow { animation: ob-pop 360ms 500ms cubic-bezier(0.2, 0.9, 0.3, 1.4) both, ob-nudge 1.6s 1.2s ease-in-out infinite; }
+.ob-line { animation: ob-rise 360ms ease-out both; }
+.ob-strike { background: linear-gradient(rgb(var(--danger)), rgb(var(--danger))) no-repeat 0 55% / 0 1.5px; animation: ob-strike 420ms 600ms ease-out forwards; color: rgb(var(--danger) / 0.8); }
+.ob-type { transform-origin: left; animation: ob-type 420ms ease-out both; }
+.ob-pop { animation: ob-pop 380ms cubic-bezier(0.2, 0.9, 0.3, 1.4) both; }
+.ob-zoom { animation: ob-zoom 3.2s 1.6s ease-in-out infinite; }
+.ob-draw { stroke-dasharray: 140; stroke-dashoffset: 140; animation: ob-draw 600ms ease-out forwards; }
+.ob-dash { animation: ob-dash 1.2s linear infinite; }
+.ob-float { animation: ob-float 2.6s ease-in-out infinite; }
+.ob-spin { animation: ob-spin 4s linear infinite; }
+.ob-ring::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 9999px;
+  border: 2px solid rgb(var(--accent));
+  animation: ob-ring 1.8s ease-out infinite;
+}
+
+@keyframes ob-card { from { opacity: 0; transform: translateY(12px) scale(0.96); } }
+@keyframes ob-in-next { from { opacity: 0; transform: translateX(18px); } }
+@keyframes ob-in-prev { from { opacity: 0; transform: translateX(-18px); } }
+@keyframes ob-rise { from { opacity: 0; transform: translateY(6px); } }
+@keyframes ob-pop { from { opacity: 0; transform: scale(0.6); } }
+@keyframes ob-type { from { opacity: 0; transform: scaleX(0); } }
+@keyframes ob-strike { to { background-size: 100% 1.5px; } }
+@keyframes ob-nudge { 50% { transform: translateX(3px); } }
+@keyframes ob-zoom { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+@keyframes ob-draw { to { stroke-dashoffset: 0; } }
+@keyframes ob-dash { to { stroke-dashoffset: -16; } }
+@keyframes ob-float { 50% { transform: translate(-50%, -4px); } }
+@keyframes ob-spin { to { transform: rotate(360deg); } }
+@keyframes ob-ring { from { opacity: 0.7; transform: scale(1); } to { opacity: 0; transform: scale(1.45); } }

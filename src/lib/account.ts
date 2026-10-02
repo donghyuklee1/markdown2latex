@@ -25,6 +25,7 @@ export const SYNC_KEYS = [
   "cleanmath:theme:v1",
   "cleanmath:palette:v1",
   "cleanmath:snippets:v1",
+  "cleanmath:onboarded:v1",
 ] as const;
 
 /** One value larger than this is not synced (a runaway snippet list, say). */

@@ -8,6 +8,7 @@ import PalettePicker from "./PalettePicker";
 import ThemeToggle from "./ThemeToggle";
 import { GithubMark } from "./account/icons";
 import { AccountButton } from "./account/AccountDock";
+import { SignInButton } from "./account/LoginScreen";
 
 
 function Wordmark() {
@@ -70,6 +71,7 @@ export default function Header() {
         <ShortcutsButton />
         <ThemeToggle />
         <PalettePicker />
+        <SignInButton />
         {/* Below lg there is no margin for the dock: the account circle lives here. */}
         <AccountButton />
       </div>

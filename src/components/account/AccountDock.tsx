@@ -1,15 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { Cloud, CloudOff, FilePlus2, History, Keyboard, Loader2, LogOut, Minus, Moon, Plus, RefreshCw, Sun, Trash2, UserRound } from "lucide-react";
+import { Cloud, CloudOff, History, Keyboard, Loader2, LogOut, Minus, Moon, Plus, RefreshCw, Sparkle, Sun, Trash2, UserRound, X } from "lucide-react";
 import { initials } from "@/lib/account";
-import { docs, MAX_DOCS } from "@/lib/documents";
 import { aiStore, FONT_MAX, FONT_MIN, uiStore } from "@/lib/persistedStore";
 import { getThemeServerSnapshot, getThemeSnapshot, setTheme, subscribeToTheme } from "@/lib/theme";
 import { setShortcutsOpen } from "../ShortcutsDialog";
+import { openTour, tourPending, useTourOpen } from "../onboarding/Onboarding";
 import { useToast } from "../Toast";
-import { accountStore, accountsEnabled, deleteCloudData, initAccount, signIn, signOut, type Provider } from "./cloud";
-import { GithubMark, GoogleMark } from "./icons";
+import { accountStore, accountsEnabled, ackSignIn, deleteCloudData, initAccount, signOut } from "./cloud";
+import { ProviderButtons } from "./LoginScreen";
 
 /** Ask the workspace to open one of its rail panels (it listens for this). */
 export function openRail(id: string): void {
@@ -25,7 +25,7 @@ function ago(at: number): string {
 
 /* ----------------------------------------------------------- avatar */
 
-function Avatar({ size }: { size: number }) {
+export function Avatar({ size }: { size: number }) {
   const acc = useSyncExternalStore(accountStore.subscribe, accountStore.get, accountStore.getServer);
   const [broken, setBroken] = useState<string | null>(null);
   const p = acc.profile;
@@ -57,19 +57,8 @@ function AccountMenu({ onClose }: { onClose: () => void }) {
   const ai = useSyncExternalStore(aiStore.subscribe, aiStore.get, aiStore.getServer);
   const theme = useSyncExternalStore(subscribeToTheme, getThemeSnapshot, getThemeServerSnapshot);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [busy, setBusy] = useState<Provider | null>(null);
   const toast = useToast();
   const p = acc.profile;
-
-  const go = async (provider: Provider) => {
-    setBusy(provider);
-    try {
-      await signIn(provider); // navigates away to the provider
-    } catch (e) {
-      toast("Sign-in failed: " + (e instanceof Error ? e.message : String(e)), "info");
-      setBusy(null);
-    }
-  };
 
   const sync = acc.sync;
   const syncLine =
@@ -95,23 +84,8 @@ function AccountMenu({ onClose }: { onClose: () => void }) {
           <p className="text-sm font-semibold text-text">Sign in</p>
           <p className="leading-snug text-faint">Keep your history, analyses and preferences on every device. Your work still saves in this browser without an account.</p>
           {accountsEnabled ? (
-            <div className="space-y-1.5 pt-0.5">
-              {(
-                [
-                  ["google", "Continue with Google", GoogleMark],
-                  ["github", "Continue with GitHub", GithubMark],
-                ] as const
-              ).map(([id, label, Mark]) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => void go(id)}
-                  disabled={!!busy || acc.status === "loading"}
-                  className="press flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-border bg-surface font-semibold text-text shadow-sm transition-colors hover:border-border-strong disabled:opacity-60"
-                >
-                  {busy === id ? <Loader2 size={14} className="animate-spin" /> : <Mark size={15} />} {label}
-                </button>
-              ))}
+            <div className="pt-0.5">
+              <ProviderButtons />
             </div>
           ) : (
             <p className="rounded-lg bg-surface-2 px-2 py-1.5 leading-snug text-muted">Accounts are not set up on this deployment yet.</p>
@@ -181,6 +155,14 @@ function AccountMenu({ onClose }: { onClose: () => void }) {
         label="Keyboard shortcuts"
         onClick={() => {
           setShortcutsOpen(true);
+          onClose();
+        }}
+      />
+      <Row
+        icon={Sparkle}
+        label="Take the tour"
+        onClick={() => {
+          openTour();
           onClose();
         }}
       />
@@ -296,50 +278,57 @@ export function AccountButton() {
 }
 
 /**
- * Bottom-left dock: a few everyday actions above the account circle. It sits
- * in the left rail's column - the margin a wide screen leaves empty.
+ * The account circle, bottom left, centred in the blank margin left of the
+ * panes. That margin is the page's side offset (when the screen is wider than
+ * the 1910px layout) plus the 1rem padding, the 44px rail column and its
+ * 10px gap; the 40px circle sits in its middle.
  */
+const DOCK_LEFT = "calc((max(0px, (100vw - 1910px) / 2) + 70px) / 2 - 20px)";
+
 export default function AccountDock() {
-  const toast = useToast();
-  const theme = useSyncExternalStore(subscribeToTheme, getThemeSnapshot, getThemeServerSnapshot);
-  const actions = [
-    {
-      label: "New document",
-      keys: "",
-      icon: FilePlus2,
-      run: () => {
-        if (uiStore.get().view !== "clean") uiStore.set({ ...uiStore.get(), view: "clean" });
-        if (docs.create("", "") === null) toast("Up to " + MAX_DOCS + " tabs - close one first", "info");
-      },
-    },
-    { label: "History", keys: "", icon: History, run: () => openRail("history") },
-    { label: "Keyboard shortcuts", keys: "?", icon: Keyboard, run: () => setShortcutsOpen(true) },
-    { label: theme === "dark" ? "Light theme" : "Dark theme", keys: "", icon: theme === "dark" ? Sun : Moon, run: () => setTheme(theme === "dark" ? "light" : "dark") },
-  ];
+  return (
+    <>
+      <div className="fixed bottom-4 z-40 hidden lg:block" style={{ left: DOCK_LEFT }}>
+        <AccountCircle size={40} placement="dock" />
+      </div>
+      <WelcomeCard />
+    </>
+  );
+}
+
+/**
+ * Just back from Google or GitHub: the profile picture and name, next to the
+ * circle that now carries the picture, for a few seconds.
+ */
+function WelcomeCard() {
+  const acc = useSyncExternalStore(accountStore.subscribe, accountStore.get, accountStore.getServer);
+  const tourOpen = useTourOpen();
+  // After a first sign-in the tour greets first; this card follows it.
+  const show = acc.justSignedIn && acc.ready && !!acc.profile && !tourOpen && !tourPending(acc.profile.id);
+  useEffect(() => {
+    if (!show) return;
+    const t = window.setTimeout(ackSignIn, 5000);
+    return () => window.clearTimeout(t);
+  }, [show]);
+  if (!show) return null;
+  const p = acc.profile!;
   return (
     <div
-      className="fixed bottom-4 z-40 hidden w-11 flex-col items-center gap-1.5 lg:flex"
-      // Line up with the left rail, whose column is centred with the page.
-      style={{ left: "max(1rem, calc((100vw - 1910px) / 2 + 1rem))" }}
+      role="status"
+      className="themed fixed bottom-4 left-4 z-[60] flex animate-pop-in items-center gap-3 rounded-2xl border border-border bg-surface py-2.5 pl-2.5 pr-3 shadow-2xl shadow-black/15 lg:bottom-3.5 lg:left-[calc((max(0px,(100vw-1910px)/2)+70px)/2+32px)]"
     >
-      <nav aria-label="Quick actions" className="themed flex flex-col items-center gap-0.5 rounded-xl border border-border bg-surface p-1 shadow-sm">
-        {actions.map((a) => (
-          <button
-            key={a.label}
-            type="button"
-            onClick={a.run}
-            aria-label={a.label}
-            className="press group relative flex h-8 w-8 items-center justify-center rounded-lg text-faint hover:bg-surface-2 hover:text-text"
-          >
-            <a.icon size={15} />
-            <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 translate-x-[-4px] whitespace-nowrap rounded-md bg-text px-2 py-1 text-[11px] font-medium text-bg opacity-0 shadow-lg transition-all duration-150 group-hover:translate-x-0 group-hover:opacity-100">
-              {a.label}
-              {a.keys && <span className="ml-1.5 font-mono opacity-60">{a.keys}</span>}
-            </span>
-          </button>
-        ))}
-      </nav>
-      <AccountCircle size={40} placement="dock" />
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent/15 text-accent ring-2 ring-accent/30">
+        <Avatar size={44} />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-sm font-semibold text-text">Welcome, {p.name.split(" ")[0]}</span>
+        <span className="block text-[11px] text-faint">
+          Signed in with {p.provider === "github" ? "GitHub" : p.provider === "google" ? "Google" : p.provider || "your account"} · syncing your work
+        </span>
+      </span>
+      <button type="button" onClick={ackSignIn} aria-label="Dismiss" className="press ml-1 rounded-md p-1 text-faint hover:bg-surface-2 hover:text-text">
+        <X size={13} />
+      </button>
     </div>
   );
 }
