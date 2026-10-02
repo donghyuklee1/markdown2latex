@@ -55,7 +55,7 @@ export function ProviderButtons({ size = "md" }: { size?: "md" | "lg" }) {
   };
 
   return (
-    <div className="space-y-2">
+    <div className={"space-y-2 " + (last ? "pt-1.5" : "")}>
       {ordered.map(({ id, label, Mark, cls }) => (
         <button
           key={id}
@@ -70,7 +70,12 @@ export function ProviderButtons({ size = "md" }: { size?: "md" | "lg" }) {
         >
           {busy === id ? <Loader2 size={16} className="animate-spin" /> : <Mark size={size === "lg" ? 18 : 15} />}
           {busy === id ? "Redirecting to " + (id === "google" ? "Google" : "GitHub") + "..." : label}
-          {id === last && !busy && <span className="absolute right-3 rounded-full bg-accent/15 px-1.5 py-px text-[9.5px] font-semibold text-accent">Last used</span>}
+          {/* On the top edge, not inside: it never covers the label, however narrow the button. */}
+          {id === last && !busy && (
+            <span className="pointer-events-none absolute -top-2 right-3 rounded-full border border-accent/30 bg-surface px-1.5 py-px text-[9.5px] font-semibold leading-[14px] text-accent shadow-sm">
+              Last used
+            </span>
+          )}
         </button>
       ))}
     </div>

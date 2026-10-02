@@ -4,12 +4,13 @@ import ShortcutsDialog from "@/components/ShortcutsDialog";
 import AccountDock from "@/components/account/AccountDock";
 import Onboarding from "@/components/onboarding/Onboarding";
 import LoginScreen from "@/components/account/LoginScreen";
+import AiKeyDialog from "@/components/ai/AiKeyDialog";
 import { ToastProvider } from "@/components/Toast";
 
 /**
- * Single-page workspace. Every transformation happens in the browser; the
- * only server piece is /api/analyze (shared Gemini key), and accounts talk to
- * Supabase directly from the browser.
+ * Single-page workspace. Every transformation happens in the browser; there is
+ * no server code. AI calls go from the browser to Google with the user's own
+ * key, and accounts talk to Supabase directly.
  */
 export default function Page() {
   return (
@@ -22,6 +23,7 @@ export default function Page() {
       <AccountDock />
       <Onboarding />
       <LoginScreen />
+      <AiKeyDialog />
     </ToastProvider>
   );
 }

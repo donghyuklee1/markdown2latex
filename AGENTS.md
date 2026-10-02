@@ -9,11 +9,11 @@ depth.
 
 CleanMath turns messy LLM-generated math into LaTeX that compiles on the first
 try. Next.js 16 App Router, React 19, single static page, Tailwind, KaTeX.
-Everything runs in the browser. The one server piece is `app/api/analyze`, and
-nothing else may be added: no other route handlers, no server actions, no
-analytics, and no request that carries user text except the click-triggered
-exits below. Privacy is a product feature, not an implementation detail. There
-are exactly five exits, all deliberate, each triggered by an explicit user action:
+Everything runs in the browser. There is no server code and there must never
+be any: no route handlers, no server actions, no analytics, no shared API keys,
+and no request that carries user text except the exits below. Privacy is a
+product feature, not an implementation detail. There are exactly six exits,
+all deliberate, each started by an explicit user action:
 
 - **Open in Overleaf** (`components/exporters.ts`) POSTs the document to
   Overleaf's `/docs` endpoint - only on an explicit click, and its tooltip says so.
@@ -22,22 +22,26 @@ are exactly five exits, all deliberate, each triggered by an explicit user actio
 - **arXiv Formula Extractor** (`lab/panels/ArxivPanel.tsx`) fetches
   `https://arxiv.org/src/<id>` - the only thing sent is the paper ID the user
   typed. Use `/src/`, not `/e-print/`: the latter redirects without CORS headers.
-- **Derivation notes -> Analyze with Gemini** (`components/derivation/gemini.ts`)
-  sends the document to Google's Gemini API. With the user's own key the
-  browser calls Google directly (key stored in their browser, sent as the
-  `x-goog-api-key` header, never in a URL). Without one it goes through
-  `app/api/analyze/route.ts`, which holds the site key (`GEMINI_API_KEY`, a
-  server secret). That route must stay narrow: it accepts only `{ input }`,
-  builds the prompt itself via `geminiRequest`, refuses cross-origin calls,
-  rate-limits per visitor and per day, and stores and logs nothing
-  (`tests/api.spec.ts`). Either way `mergeAi` validates the answer.
+- **Gemini** (`components/derivation/gemini.ts`, `components/ai/`) with the
+  user's *own* key only, browser to Google, the key in the `x-goog-api-key`
+  header, never in a URL. Saving a key is the user's opt-in and turns AI mode
+  on; in AI mode the orchestrator (`ai/orchestrator.ts`) analyses derivations
+  in the background as the mathematics changes, and a pasted image is
+  converted (`lib/ocr.ts`). AI mode can be switched off at any time (header
+  switch) and then nothing is sent. Every prompt has a JSON response schema,
+  and every answer is validated (`mergeAi`, `parseOcr`) before use. Signed-in
+  users may keep the key in their account: Supabase Vault, encrypted, reachable
+  only through `get_gemini_key` / `set_gemini_key` (`tests/db.spec.ts`).
 - **Accounts** (`components/account/cloud.ts`, `docs/ACCOUNTS.md`): only after
   the user signs in with Google or GitHub, their snapshots, analyses and
   preferences sync to Supabase, straight from the browser. Row-level security
-  is the access control (`tests/db.spec.ts`); the Gemini key is never synced
-  (`SYNC_KEYS`). The Supabase library is not even loaded for a visitor who has
-  not signed in, and the app must never wait on sync - local storage stays the
-  source of truth.
+  is the access control (`tests/db.spec.ts`); the Gemini key is never part of
+  the synced preferences (`SYNC_KEYS`). The Supabase library is not loaded for
+  a visitor who has not signed in, and the app must never wait on sync - local
+  storage stays the source of truth. Profile pictures load from Google/GitHub.
+- **Google Drive** (`components/drive/`): signed-in users save to and open from
+  their Drive, on click, with the `drive.file` scope only (files the app saved
+  or the user picked). Google's sign-in and picker scripts load on first use.
 
 Anything else that would send data off the page does not belong.
 

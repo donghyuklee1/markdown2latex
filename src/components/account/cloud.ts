@@ -11,7 +11,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   changedKeys,
-  hashText,
   pickSettings,
   profileFrom,
   reviveEntry,
@@ -23,6 +22,8 @@ import {
   type Settings,
 } from "@/lib/account";
 import { historyStore } from "@/lib/documents";
+import { aiStore } from "@/lib/persistedStore";
+import { clearDriveToken, DRIVE_SCOPE, setSignInToken } from "../drive/drive";
 
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
@@ -114,12 +115,15 @@ async function connect(): Promise<SupabaseClient> {
     // Supabase warns against awaiting its calls inside this callback.
     setTimeout(() => {
       if (session?.user) {
+        // Fresh from Google: its access token also opens Drive (drive.file) for an hour.
+        if (event === "SIGNED_IN" && cameBack && session.provider_token && session.user.app_metadata?.provider === "google") setSignInToken(session.provider_token);
         const profile = profileFrom(session.user);
         const fresh = state.profile?.id !== profile?.id;
         emit({ status: "signed-in", profile, error: null, justSignedIn: fresh && cameBack });
         if (fresh) void startSync(sb);
       } else if (event === "SIGNED_OUT" || event === "INITIAL_SESSION") {
         stopSync();
+        if (event === "SIGNED_OUT") clearDriveToken();
         emit({ status: "idle", profile: null, sync: { state: "idle", at: null, pending: 0 }, ready: false });
       }
     }, 0);
@@ -146,7 +150,14 @@ export async function signIn(provider: Provider): Promise<void> {
   }
   const sb = await connect();
   emit({ status: "loading", error: null });
-  const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo: window.location.origin + window.location.pathname } });
+  const { error } = await sb.auth.signInWithOAuth({
+    provider,
+    options: {
+      redirectTo: window.location.origin + window.location.pathname,
+      // Google sign-in also grants Drive access to the files this app saves or the user picks.
+      ...(provider === "google" ? { scopes: DRIVE_SCOPE, queryParams: { include_granted_scopes: "true" } } : {}),
+    },
+  });
   if (error) {
     emit({ status: "idle" });
     throw error;
@@ -282,6 +293,9 @@ async function startSync(sb: SupabaseClient) {
   await Promise.race([pullSettings(sb, true), new Promise((r) => setTimeout(r, 2500))]);
   emit({ ready: true });
 
+  // The Gemini key, if this account keeps one (encrypted with Supabase Vault).
+  void restoreKey(sb);
+
   // Everything already in local history goes up once (duplicates are ignored).
   queue.add(historyStore.get());
   scheduleFlush(500);
@@ -323,6 +337,30 @@ function stopSync() {
   window.clearTimeout(settingsTimer);
 }
 
+/* --------------------------------------------------- Gemini key (Vault) */
+
+/**
+ * The account's Gemini key lives in Supabase Vault - encrypted at rest - and is
+ * reachable only through two functions that act on the caller's own row
+ * (supabase/migrations). It is never part of the synced preferences.
+ */
+async function restoreKey(sb: SupabaseClient) {
+  const local = aiStore.get();
+  if (local.apiKey || !local.remember) return;
+  const { data, error } = await sb.rpc("get_gemini_key");
+  if (error || typeof data !== "string" || !data) return;
+  // A key saved on another device: AI mode comes on here too.
+  aiStore.set({ ...aiStore.get(), apiKey: data, mode: true });
+}
+
+/** Keep (or with null, remove) the key in the account. No-op when signed out. */
+export async function saveKeyToAccount(key: string | null): Promise<boolean> {
+  if (state.status !== "signed-in") return false;
+  const sb = await client();
+  const { error } = await sb.rpc("set_gemini_key", { new_key: key ?? "" });
+  return !error;
+}
+
 /* ------------------------------------------------------- history API */
 
 const PAGE = 30;
@@ -350,17 +388,16 @@ export async function cloudText(id: string): Promise<string> {
 
 /* ------------------------------------------------------ analyses API */
 
-export async function cloudAnalysis(input: string): Promise<unknown | null> {
+/** `key` is the analysis cache key (lib/derivation analysisKey): the mathematics, normalized. */
+export async function cloudAnalysis(key: string): Promise<unknown | null> {
   if (state.status !== "signed-in") return null;
   const sb = await client();
-  const { data } = await sb.from("analyses").select("result").eq("input_hash", hashText(input)).maybeSingle();
+  const { data } = await sb.from("analyses").select("result").eq("input_hash", key).maybeSingle();
   return data?.result ?? null;
 }
 
-export function saveCloudAnalysis(input: string, model: string, result: unknown): void {
+export function saveCloudAnalysis(key: string, model: string, result: unknown): void {
   if (state.status !== "signed-in") return;
-  void client().then((sb) =>
-    sb.from("analyses").upsert({ input_hash: hashText(input), model, result, created_at: new Date().toISOString() }, { onConflict: "user_id,input_hash" }),
-  );
+  void client().then((sb) => sb.from("analyses").upsert({ input_hash: key, model, result, created_at: new Date().toISOString() }, { onConflict: "user_id,input_hash" }));
 }
 

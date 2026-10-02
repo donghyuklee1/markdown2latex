@@ -1,6 +1,6 @@
 # CleanMath runs in the browser: the image is a build stage plus a standalone
-# Next.js server. Its one optional secret is GEMINI_API_KEY (pass with -e) for
-# the shared "Analyze with Gemini" route; without it that route answers 501.
+# Next.js server for the static page, with no runtime secrets. The public
+# NEXT_PUBLIC_* settings (.env.example) are read at build time.
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./

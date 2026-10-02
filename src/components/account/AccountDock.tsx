@@ -7,6 +7,7 @@ import { aiStore, FONT_MAX, FONT_MIN, uiStore } from "@/lib/persistedStore";
 import { getThemeServerSnapshot, getThemeSnapshot, setTheme, subscribeToTheme } from "@/lib/theme";
 import { setShortcutsOpen } from "../ShortcutsDialog";
 import { openTour, tourPending, useTourOpen } from "../onboarding/Onboarding";
+import { openAiKey } from "../ai/AiKeyDialog";
 import { useToast } from "../Toast";
 import { accountStore, accountsEnabled, ackSignIn, deleteCloudData, initAccount, signOut } from "./cloud";
 import { ProviderButtons } from "./LoginScreen";
@@ -127,17 +128,17 @@ function AccountMenu({ onClose }: { onClose: () => void }) {
           </div>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-muted">Gemini key</span>
+          <span className="text-muted">AI mode</span>
           <button
             type="button"
             onClick={() => {
-              uiStore.set({ ...uiStore.get(), view: "clean", tab: "graph" });
+              openAiKey();
               onClose();
             }}
-            className="press rounded-md px-1.5 py-0.5 text-faint hover:bg-surface-2 hover:text-text"
-            title="Manage it in Derivation notes (key icon)"
+            className={"press rounded-md px-1.5 py-0.5 hover:bg-surface-2 hover:text-text " + (ai.apiKey && ai.mode ? "font-semibold text-ok" : "text-faint")}
+            title="Your Gemini key, model and AI mode"
           >
-            {ai.apiKey ? "Your own key" : "Shared (site)"}
+            {!ai.apiKey ? "Add your key" : ai.mode ? "On" : "Off"}
           </button>
         </div>
       </div>

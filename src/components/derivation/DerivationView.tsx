@@ -7,11 +7,10 @@ import { InlineMath } from "@/components/Katex";
 import { writeClipboard } from "@/components/exporters";
 import { useToast } from "@/components/Toast";
 import { bottomUp, ideasTikz, mergeAi, offlineModel, topDown, variablesTable, type AiPart, type Derivation, type Step, type StepKind, type TreeNode } from "@/lib/derivation";
-import { aiStore, analysisStore, cacheAnalysis } from "@/lib/persistedStore";
+import { aiStore, analysisStore } from "@/lib/persistedStore";
 import type { StudioContext } from "../studio/types";
-import { hashText } from "@/lib/account";
-import { cloudAnalysis, saveCloudAnalysis } from "../account/cloud";
-import { AiError, analyzePart, analyzePartViaSite, listModels, siteAvailable, type ModelInfo, type PartAnswer } from "./gemini";
+import { openAiKey } from "../ai/AiKeyDialog";
+import { keyFor, runAnalysis, runStore } from "../ai/orchestrator";
 
 /**
  * Derivation notes: what a document's formulas *mean* and how they build on
@@ -37,10 +36,6 @@ const KIND: Record<StepKind, { label: string; cls: string }> = {
   final: { label: "Result", cls: "bg-accent/15 text-accent" },
 };
 
-/* Analyses are kept by text hash in this browser (and, signed in, in the
- * cloud), so reopening a document shows its analysis at once. After an edit
- * the most recent one stays on screen, marked outdated. */
-const isDerivation = (x: unknown): x is Derivation => !!x && typeof x === "object" && Array.isArray((x as Derivation).steps);
 
 /* ------------------------------------------------------------ pieces */
 
@@ -431,174 +426,40 @@ function IdeasView({ d, onAnalyze, steps }: { d: Derivation; onAnalyze: () => vo
 
 /* -------------------------------------------------------------- shell */
 
-function Settings({ site, onClose }: { site: boolean; onClose: () => void }) {
-  const ai = useSyncExternalStore(aiStore.subscribe, aiStore.get, aiStore.getServer);
-  const [key, setKey] = useState(ai.apiKey);
-  const [models, setModels] = useState<ModelInfo[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const save = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const list = await listModels(key.trim());
-      setModels(list);
-      aiStore.set({ apiKey: key.trim(), model: ai.model && list.some((m) => m.id === ai.model) ? ai.model : list[0]?.id ?? "" });
-    } catch (e) {
-      setError(e instanceof AiError ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <div className="absolute right-2 top-full z-40 mt-1 w-80 animate-pop-in space-y-2.5 rounded-xl border border-border bg-surface p-3.5 text-xs shadow-2xl" onClick={(e) => e.stopPropagation()}>
-      <div className="flex items-center gap-1.5 font-semibold text-text">
-        <GeminiStar size={14} /> <BrandMark mark="gemini" height="1.05em" /> API key
-        <button type="button" onClick={onClose} aria-label="Close" className="press ml-auto rounded p-0.5 text-faint hover:text-text">
-          <X size={13} />
-        </button>
-      </div>
-      <p className="leading-snug text-faint">
-        Free from{" "}
-        <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer noopener" className="text-accent underline">
-          Google AI Studio
-        </a>
-        . It stays in this browser and is sent only to Google, only when you press Analyze. On the free tier Google may use prompts to improve its models.
-      </p>
-      {site && !ai.apiKey && (
-        <p className="rounded-lg bg-surface-2 px-2 py-1.5 leading-snug text-muted">
-          Optional: Analyze already works through this site&apos;s shared key, with a small per-visitor limit. Your own key skips that limit.
-        </p>
-      )}
-      <input
-        type="password"
-        value={key}
-        onChange={(e) => setKey(e.target.value)}
-        placeholder="Paste your key"
-        autoComplete="off"
-        className="h-8 w-full rounded-lg border border-border bg-bg px-2 font-mono text-text outline-none focus:border-accent/60"
-      />
-      <div className="flex gap-1.5">
-        <button type="button" onClick={() => void save()} disabled={!key.trim() || busy} className="press flex flex-1 items-center justify-center gap-1 rounded-lg bg-accent px-2 py-1.5 font-semibold text-accent-ink disabled:opacity-40">
-          {busy && <Loader2 size={12} className="animate-spin" />} Save and check
-        </button>
-        {ai.apiKey && (
-          <button
-            type="button"
-            onClick={() => {
-              aiStore.set({ apiKey: "", model: "" });
-              setKey("");
-              setModels([]);
-            }}
-            className="press rounded-lg border border-border px-2 py-1.5 font-semibold text-muted hover:text-danger"
-          >
-            Forget key
-          </button>
-        )}
-      </div>
-      {error && <p className="rounded-lg bg-danger/10 px-2 py-1.5 text-danger">{error}</p>}
-      {(models.length > 0 || ai.model) && (
-        <label className="block space-y-1">
-          <span className="text-faint">Model</span>
-          <select value={ai.model} onChange={(e) => aiStore.set({ ...ai, model: e.target.value })} className="h-8 w-full rounded-lg border border-border bg-bg px-1.5 text-text">
-            {(models.length ? models : [{ id: ai.model, label: ai.model }]).map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-    </div>
-  );
-}
-
 export default function DerivationView({ input, selectLines, insert }: StudioContext) {
   const source = useDeferredValue(input);
   const offline = useMemo(() => offlineModel(source), [source]);
   const ai = useSyncExternalStore(aiStore.subscribe, aiStore.get, aiStore.getServer);
+  const run = useSyncExternalStore(runStore.subscribe, runStore.get, runStore.getServer);
+  const store = useSyncExternalStore(analysisStore.subscribe, analysisStore.get, analysisStore.getServer);
   const [view, setView] = useState<View>("notes");
   const [hover, setHover] = useState<HoverState>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [settings, setSettings] = useState(false);
-  const [site, setSite] = useState<boolean | null>(null);
-  const [siteModel, setSiteModel] = useState("");
-  const [partial, setPartial] = useState<{ key: string; d: Derivation } | null>(null);
   const toast = useToast();
-  const store = useSyncExternalStore(analysisStore.subscribe, analysisStore.get, analysisStore.getServer);
 
-  const key = useMemo(() => hashText(source), [source]);
-  const stored = store[key]?.result;
-  const cached = isDerivation(stored) ? stored : partial?.key === key ? partial.d : null;
+  // The cache key is the mathematics, normalized: prose edits keep the analysis.
+  const key = useMemo(() => keyFor(source), [source]);
+  const busy = run.phase === "running";
+  // Cached answers are raw, validated JSON; merged with the current text here, so
+  // line numbers and LaTeX always come from what is on screen now.
+  const raw = store[key]?.result ?? (run.key === key ? run.partial : null);
+  const cached = useMemo(() => (raw ? mergeAi(raw, offline) : null), [raw, offline]);
   // An analysis of a slightly older version still helps: show it, marked outdated.
   const newest = useMemo(() => {
     const top = Object.values(store).sort((a, b) => b.at - a.at)[0]?.result;
-    return isDerivation(top) ? top : null;
-  }, [store]);
+    return top ? mergeAi(top, offline) : null;
+  }, [store, offline]);
   const lastAi = cached ?? newest;
   const d = cached ?? (lastAi && lastAi.steps.length ? lastAi : offline);
   const outdated = !cached && d === lastAi;
   const steps = useMemo(() => new Map(d.steps.map((s) => [s.id, s])), [d]);
-
-  useEffect(() => {
-    let live = true;
-    void siteAvailable().then((ok) => live && setSite(ok));
-    return () => {
-      live = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!settings) return;
-    const close = () => setSettings(false);
-    window.addEventListener("click", close);
-    return () => window.removeEventListener("click", close);
-  }, [settings]);
+  const error = run.phase === "error" && run.key === key ? run.error : null;
 
   const analyze = async () => {
-    setError(null);
-    // Signed in: an analysis of this exact text from another device is instant.
-    const fromCloud = await cloudAnalysis(source).catch(() => null);
-    if (isDerivation(fromCloud) && !(d.source === "ai" && !outdated)) {
-      cacheAnalysis(key, "", fromCloud);
-      toast("Loaded your saved analysis");
-      return;
-    }
-    // No key of their own: the site's shared key, when this deployment has one.
-    const viaSite = !ai.apiKey && (site ?? (await siteAvailable()));
-    if (!ai.apiKey && !viaSite) {
-      setSettings(true);
-      return;
-    }
-    setBusy(true);
-    const started = performance.now();
-    try {
-      let model = ai.model;
-      if (!viaSite && !model) {
-        model = (await listModels(ai.apiKey))[0]?.id ?? "";
-        aiStore.set({ ...ai, model });
-      }
-      const run = (part: AiPart): Promise<PartAnswer> => (viaSite ? analyzePartViaSite(source, part) : analyzePart(source, part, ai.apiKey, model));
-      // Both parts at once; the steps are shown the moment they arrive.
-      const stepsP = run("steps");
-      const glossaryP = run("glossary");
-      const steps = await stepsP;
-      setPartial({ key, d: mergeAi(steps.json, offline) });
-      const glossary = await glossaryP.catch(() => null);
-      const result = mergeAi({ ...(steps.json as object), ...((glossary?.json as object) ?? {}) }, offline);
-      cacheAnalysis(key, steps.model, result);
-      saveCloudAnalysis(source, steps.model, result);
-      setPartial(null);
-      if (viaSite) setSiteModel(steps.model);
-      else if (steps.model !== model) toast(model + " was busy - answered by " + steps.model);
-      const secs = ((performance.now() - started) / 1000).toFixed(1);
-      toast("Analysis ready in " + secs + " s - " + result.steps.length + " steps, " + result.variables.length + " variables" + (glossary ? "" : " (glossary unavailable)"));
-    } catch (e) {
-      setError(e instanceof AiError ? e.message : "Analysis failed: " + String(e));
-    } finally {
-      setBusy(false);
-    }
+    if (!ai.apiKey) return openAiKey();
+    const outcome = await runAnalysis(source, { force: d.source === "ai" && !outdated });
+    const r = runStore.get();
+    if (outcome === "cloud") toast("Loaded your saved analysis");
+    else if (outcome === "done") toast("Analysis ready in " + r.took + " s" + (ai.model && r.model !== ai.model ? " - " + ai.model + " was busy, answered by " + r.model : ""));
   };
 
   const pick = (s: Step) => s.lines && selectLines(s.lines[0], s.lines[1]);
@@ -620,14 +481,14 @@ export default function DerivationView({ input, selectLines, insert }: StudioCon
             </button>
           ))}
         </div>
-        <span className={"ml-auto rounded-full px-2 py-0.5 text-[10px] font-semibold " + (d.source === "ai" ? (outdated ? "bg-surface-2 text-faint" : "bg-accent/10 text-accent") : "bg-surface-2 text-faint")} title={d.source === "ai" ? "Explained by " + ((ai.apiKey ? ai.model : siteModel) || "Gemini") : "From the text alone - no AI"}>
-          {d.source === "ai" ? (outdated ? "AI · outdated" : "AI") : "Offline"}
+        <span className={"ml-auto rounded-full px-2 py-0.5 text-[10px] font-semibold " + (d.source === "ai" ? (outdated ? "bg-surface-2 text-faint" : "bg-accent/10 text-accent") : "bg-surface-2 text-faint")} title={d.source === "ai" ? "Explained by " + (store[key]?.model || ai.model || "Gemini") : "From the text alone - no AI"}>
+          {busy && run.background ? "AI · updating" : d.source === "ai" ? (outdated ? "AI · outdated" : "AI") : "Offline"}
         </span>
         <button
           type="button"
           onClick={() => void analyze()}
           disabled={busy}
-          title={"Explain this derivation with Gemini" + (ai.apiKey ? " - your key" + (ai.model ? ", " + ai.model : "") : site ? " - free, via this site" : "")}
+          title={ai.apiKey ? "Explain this derivation with Gemini (" + (ai.model || "newest Flash") + ")" + (ai.mode ? " - AI mode also does this in the background" : "") : "Add your free Gemini key to explain this derivation"}
           className="press flex items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-1 text-[11px] font-semibold text-text shadow-sm transition-colors hover:border-[#4b8cf5]/60 disabled:opacity-60"
         >
           {busy ? <Loader2 size={13} className="animate-spin text-[#4b8cf5]" /> : <GeminiStar size={13} />}
@@ -636,17 +497,13 @@ export default function DerivationView({ input, selectLines, insert }: StudioCon
         </button>
         <button
           type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            setSettings((v) => !v);
-          }}
+          onClick={openAiKey}
           aria-label="AI settings"
-          title="Gemini API key and model"
+          title="Gemini API key, model and AI mode"
           className={"press flex h-6 w-6 items-center justify-center rounded-md " + (ai.apiKey ? "text-faint hover:text-text" : "text-accent")}
         >
           <KeyRound size={13} />
         </button>
-        {settings && <Settings site={!!site} onClose={() => setSettings(false)} />}
       </div>
 
       {error && <div className="shrink-0 border-b border-danger/20 bg-danger/[0.06] px-3 py-1.5 text-xs text-danger">{error}</div>}

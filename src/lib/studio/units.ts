@@ -15,9 +15,19 @@
  * dimensional bases. Symbols it cannot place make a result "incomplete", never
  * a mismatch - an unknown is not evidence of an error.
  *
+ * Not every equation is physics. Before any dimension is assigned, each
+ * relation is classified (`classifyEquation`): a loss L(\theta), an index sum,
+ * `a = b + c` are abstract mathematics - reported as dimensionless and not
+ * checked. Only equations with physical evidence (a known law, physical
+ * constants, explicit units, physics vocabulary nearby, or the user's own
+ * assignment) are analysed, and inside them a generic letter (a-e, n) gets a
+ * physical meaning only when something designates it. A mismatch therefore
+ * always means a contradiction between physical quantities, never a guess.
+ *
  * Pure: no DOM, no I/O, non-ASCII written as escapes. Never throws.
  */
 import { tokenize } from "../cleaner";
+import { DEFAULT_SYMBOL_OPTIONS, extractSymbols } from "../lab/symbols";
 
 /* ------------------------------------------------------------- dimensions */
 
@@ -330,12 +340,18 @@ export interface SideResult {
   text: string;
 }
 
-export type UnitStatus = "consistent" | "mismatch" | "incomplete" | "skipped";
+export type UnitStatus = "consistent" | "mismatch" | "incomplete" | "skipped" | "abstract";
+
+/** Physics to check, or abstract mathematics to leave alone. */
+export type EquationKind = "physical" | "abstract";
 
 export interface EquationResult {
   latex: string;
   line: number | null;
   status: UnitStatus;
+  /** How the equation was classified, and why. */
+  kind: EquationKind;
+  kindReason: string;
   sides: SideResult[];
   message: string;
   notes: UnitNote[];
@@ -347,7 +363,7 @@ export interface SymbolInfo {
   quantity: string;
   dims: DimVec | null;
   dimsText: string;
-  source: "default" | "override" | "unknown";
+  source: "default" | "override" | "ai" | "unknown";
   description: string;
   note?: string;
 }
@@ -360,6 +376,20 @@ export interface UnitsAnalysis {
 export interface EquationSource {
   latex: string;
   line: number | null;
+  /** The prose just before the equation, for context. */
+  context?: string;
+}
+
+/** What the analysis may use beyond the equation itself. */
+export interface UnitsOptions {
+  /** The prose right before the equation. */
+  near?: string;
+  /** The whole document's prose. */
+  doc?: string;
+  /** Symbol -> meaning found in the prose ("where a is the acceleration"). */
+  definitions?: Record<string, string>;
+  /** The user's decision for this equation, overriding the classifier. */
+  force?: EquationKind;
 }
 
 /* ------------------------------------------------------------------ lexer */
@@ -1024,10 +1054,15 @@ export function equationsFromSource(src: string, fromDocument = true): EquationS
   const math = tokens.filter((t) => t.kind !== "text");
   const lineAt = (offset: number) => (src.slice(0, offset).match(/\n/g)?.length ?? 0) + 1;
   if (math.length) {
-    for (const t of math) {
+    let prose = "";
+    for (const t of tokens) {
+      if (t.kind === "text") {
+        prose = (prose + " " + t.value).slice(-400);
+        continue;
+      }
       const at = src.indexOf(t.value, t.start);
       const base = at >= 0 ? at : t.start;
-      for (const e of splitEquations(t.value)) out.push({ latex: e.text, line: withLines ? lineAt(base + e.offset) : null });
+      for (const e of splitEquations(t.value)) out.push({ latex: e.text, line: withLines ? lineAt(base + e.offset) : null, context: prose.trim() });
     }
     return out;
   }
@@ -1038,10 +1073,182 @@ export function equationsFromSource(src: string, fromDocument = true): EquationS
   return out;
 }
 
+/* ------------------------------------------------------- classification */
+
+/** Words that put an equation in a physics or engineering context. */
+const PHYSICS_WORDS =
+  /\b(energy|force|mass|velocity|speed|acceleration|momentum|charge|voltage|current|resistance|resistor|capacitor|inductor|field|electric|magnetic|temperature|pressure|wave|wavelength|frequency|particle|photon|electron|proton|gravity|gravitational|kinetic|potential|power|joule|newton|watt|volt|kelvin|circuit|quantum|oscillator|pendulum|spring|fluid|density|heat|thermal|semiconductor|doping|junction|permittivity|permeability|torque|friction|projectile|orbit|relativity|thermodynamic|entropy|radiation|optics|lens|refraction|velocities|displacement|kinematics|dynamics|mechanics|physics|physical|units?|SI|meters?|seconds?|kilograms?)\b/gi;
+
+/** Words that put an equation in mathematics, statistics or machine learning. */
+const MATH_WORDS =
+  /\b(loss|gradient|training|train|dataset|model|neural|network|parameters?|theorem|lemma|proof|corollary|matrix|matrices|vectors?|eigen\w*|probability|expectation|optimi[sz]ation|objective|regression|classifier|polynomial|integers?|primes?|algebra|attention|embedding|softmax|logits?|token|layer|weights|bias|alignment|sequence|series|set|group|ring|graph|vertex|vertices|metric space|norm)\b/gi;
+
+/** Signs of abstract notation inside the equation itself, with weights. */
+const ABSTRACT_SIGNS: Array<[RegExp, number, string]> = [
+  [/\\mathcal\s*\{?[LJ]\}?/, 3, "a loss / objective"],
+  [/(^|[^\\A-Za-z])[A-Z]\s*\(\s*\\(theta|phi|psi|beta|mathbf|boldsymbol|bm|omega_?\{?t)/, 3, "a function of parameters, like L(\u03b8)"],
+  [/\\nabla_\{?\\theta/, 3, "a gradient in parameters"],
+  [/\\arg\s*\\?(min|max)|\\operatorname\*?\{arg\s*(min|max)\}/, 3, "an optimisation"],
+  [/\\mathbb\s*\{?E\}?|\\operatorname\{E\}/, 3, "an expectation"],
+  [/\\mathbb\s*\{?[RNZQC]\}?/, 2, "a number set"],
+  [/(^|[^\\A-Za-z])p\s*\(\s*[a-z]\s*(\||,|\\mid)|\\log\s*p\b|\b(softmax|sigmoid|ReLU|tanh)\b|\\operatorname\{(softmax|sigmoid|ReLU)\}/, 3, "probability / ML notation"],
+  [/\\top\b|\^\{?\\intercal/, 2, "a transpose"],
+  [/\\\||\\lVert|\\rVert/, 2, "a norm"],
+  [/\\forall|\\exists|\\binom|\\pmod|\\gcd|\\mod\b/, 2, "pure-mathematics notation"],
+  [/\\sum_\{?\s*[ijkn]\b[^$]*[a-z]_\{?[ijkn]\b/, 1, "an indexed sum"],
+  [/\\in\b/, 1, "set membership"],
+  [/\\mathbf\s*\{[A-Z]\}|\\boldsymbol\s*\{[A-Z]\}/, 1, "a matrix"],
+];
+
+/** Constants that only physics uses. */
+const PHYSICAL_CONSTANTS = new Set(["\\hbar", "k_B", "k_{B}", "\\epsilon_0", "\\epsilon_{0}", "\\varepsilon_0", "\\varepsilon_{0}", "\\mu_0", "\\mu_{0}", "N_A", "N_{A}"]);
+
+/** Letters that lean physical in an equation (each weak on its own). */
+const PHYSICAL_ANCHORS = new Set(["E", "F", "v", "m", "t", "q", "B", "U", "V", "g", "\\omega", "\\nu", "\\tau", "\\rho", "\\lambda"]);
+
+/** Letters that are generic until something says otherwise ("a", "b", "c", ...). */
+const GENERIC = new Set(["a", "b", "c", "d", "e", "n", "i", "j"]);
+
+/** Single lowercase letters that, on their own, say nothing about physics. */
+const PLAIN_LETTERS = /^[a-z]$/;
+
+/** Well-known laws: when all of a law's symbols appear, they mean what the law means. */
+const LAWS: Array<{ name: string; symbols: string[] }> = [
+  { name: "E = mc\u00b2", symbols: ["E", "m", "c"] },
+  { name: "F = ma", symbols: ["F", "m", "a"] },
+  { name: "p = mv", symbols: ["p", "m", "v"] },
+  { name: "E = h\u03bd", symbols: ["E", "h", "\\nu"] },
+  { name: "E = hf", symbols: ["E", "h", "f"] },
+  { name: "E = \u0127\u03c9", symbols: ["E", "\\hbar", "\\omega"] },
+  { name: "v = \u03bbf", symbols: ["v", "\\lambda", "f"] },
+  { name: "c = \u03bbf", symbols: ["c", "\\lambda", "f"] },
+  { name: "c = \u03bb\u03bd", symbols: ["c", "\\lambda", "\\nu"] },
+  { name: "V = IR", symbols: ["V", "I", "R"] },
+  { name: "P = IV", symbols: ["P", "I", "V"] },
+  { name: "PV = nRT", symbols: ["P", "V", "n", "R", "T"] },
+  { name: "F = kx", symbols: ["F", "k", "x"] },
+  { name: "F = qE", symbols: ["F", "q", "E"] },
+  { name: "W = Fd", symbols: ["W", "F", "d"] },
+  { name: "\u03bb = h/p", symbols: ["\\lambda", "h", "p"] },
+  { name: "F = Gm\u2081m\u2082/r\u00b2", symbols: ["F", "G", "m", "r"] },
+  { name: "Q = CV", symbols: ["Q", "C", "V"] },
+  { name: "E = \u00bdmv\u00b2", symbols: ["E", "m", "v"] },
+  { name: "U = mgh", symbols: ["U", "m", "g", "h"] },
+  { name: "E = mgh", symbols: ["E", "m", "g", "h"] },
+  { name: "v = v\u2080 + at", symbols: ["v", "a", "t"] },
+  { name: "x = x\u2080 + vt", symbols: ["x", "v", "t"] },
+  { name: "E = k_B T", symbols: ["E", "k_B", "T"] },
+  { name: "E = eV", symbols: ["E", "e", "V"] },
+  { name: "\u03c9 = \u221a(k/m)", symbols: ["\\omega", "k", "m"] },
+  { name: "T = 2\u03c0\u221a(L/g)", symbols: ["T", "L", "g"] },
+  { name: "W = \u222bF dx", symbols: ["W", "F", "x"] },
+  { name: "v \u2264 c", symbols: ["v", "c"] },
+];
+
+/** `v_0` -> `v`; physical constants keep their subscript (`k_B`, `\epsilon_0`). */
+function baseName(name: string): string {
+  const flat = name.replace(/_\{(\w+)\}/, "_$1");
+  if (PHYSICAL_CONSTANTS.has(flat) || PHYSICAL_CONSTANTS.has(name)) return flat;
+  return name.replace(/_.*$/, "").replace(/^\\(dot|ddot|hat|bar|vec|tilde)\s*\{?([^}]*)\}?$/, "$2");
+}
+
+/** Numbers followed by a unit in the equation: `9.81\,\mathrm{m/s^2}`. */
+const EXPLICIT_UNIT = /\d\s*(?:\\[,;: ]|~|\s)*\\(?:mathrm|text|textrm|operatorname|mbox)\s*\{([^{}]+)\}/g;
+function hasExplicitUnits(latex: string): boolean {
+  for (const m of latex.matchAll(EXPLICIT_UNIT)) if (parseUnitExpression(m[1])) return true;
+  return false;
+}
+
+const count = (re: RegExp, text: string, cap: number) => Math.min(cap, new Set((text.match(re) ?? []).map((w) => w.toLowerCase())).size);
+
+export interface Classification {
+  kind: EquationKind;
+  reason: string;
+  /** Symbols a law, the prose or the user designates as physical. */
+  designated: Set<string>;
+  law: string | null;
+}
+
+/**
+ * Physics or abstract mathematics? Scores the evidence both ways - laws,
+ * constants, units, anchor letters and nearby words for physics; losses,
+ * parameters, expectations, norms and maths words for abstraction - and
+ * defaults to abstract: an equation is only checked when it is shown to be
+ * physical.
+ */
+export function classifyEquation(latex: string, symbols: ReadonlyArray<string>, overrides: Record<string, string> = {}, opts: UnitsOptions = {}): Classification {
+  const bases = new Set(symbols.map(baseName));
+  const designated = new Set<string>();
+
+  // The user's own assignments designate.
+  for (const s of symbols) {
+    const o = overrides[s] ?? overrides[baseName(s)];
+    if (o !== undefined && o.trim()) designated.add(baseName(s));
+  }
+  // Prose definitions that sound physical designate ("where a is the acceleration").
+  for (const [sym, meaning] of Object.entries(opts.definitions ?? {})) {
+    PHYSICS_WORDS.lastIndex = 0;
+    if (bases.has(baseName(sym)) && PHYSICS_WORDS.test(meaning)) designated.add(baseName(sym));
+  }
+  // A recognised law designates all of its symbols.
+  const law = LAWS.find((l) => l.symbols.every((x) => bases.has(x)) && bases.size <= l.symbols.length + 4) ?? null;
+  if (law) for (const x of law.symbols) designated.add(x);
+
+  const done = (kind: EquationKind, reason: string): Classification => ({ kind, reason, designated, law: law?.name ?? null });
+  if (opts.force) return done(opts.force, opts.force === "physical" ? "marked physical by you" : "marked abstract by you");
+
+  let physical = 0;
+  const why: string[] = [];
+  if (law) {
+    physical += 3;
+    why.push("matches " + law.name);
+  }
+  const constants = [...bases].filter((b) => PHYSICAL_CONSTANTS.has(b));
+  if (constants.length) {
+    physical += 2 * constants.length;
+    why.push("physical constant " + constants[0]);
+  }
+  if (hasExplicitUnits(latex)) {
+    physical += 3;
+    why.push("explicit units");
+  }
+  const anchors = [...bases].filter((b) => PHYSICAL_ANCHORS.has(b)).length;
+  physical += anchors;
+  // Newton's dots are time derivatives - mechanics notation.
+  if (/\\d?dot\s*\{?[A-Za-z]/.test(latex)) {
+    physical += 1;
+    why.push("time derivatives");
+  }
+  const userDesignated = [...designated].filter((d) => !law?.symbols.includes(d)).length;
+  physical += 2 * userDesignated;
+  if (userDesignated) why.push("symbols you or the text define as physical");
+  const nearWords = count(PHYSICS_WORDS, opts.near ?? "", 2);
+  const docWords = count(PHYSICS_WORDS, opts.doc ?? "", 3);
+  physical += nearWords + (docWords >= 3 ? 1 : 0);
+  if (nearWords) why.push("physics wording nearby");
+
+  let abstract = 0;
+  const signs: string[] = [];
+  for (const [re, w, label] of ABSTRACT_SIGNS) {
+    if (re.test(latex)) {
+      abstract += w;
+      signs.push(label);
+    }
+  }
+  abstract += count(MATH_WORDS, opts.near ?? "", 2) + (count(MATH_WORDS, opts.doc ?? "", 3) >= 3 ? 1 : 0);
+
+  // Only generic letters and nothing physical about them: a = b + c.
+  const allGeneric = [...bases].every((b) => PLAIN_LETTERS.test(b) && !PHYSICAL_ANCHORS.has(b));
+  if (allGeneric && !law && !designated.size && !hasExplicitUnits(latex)) return done("abstract", "generic symbols only");
+  if (abstract >= 2 && abstract >= physical) return done("abstract", signs[0] ?? "mathematical context");
+  if (physical >= 2 && physical > abstract) return done("physical", why[0] ?? "physical symbols");
+  return done("abstract", signs[0] ?? "no physical context");
+}
+
 const CONTEXT_PLANCK = /\\(nu|omega|lambda|hbar)\b|(^|[^A-Za-z\\])f([^A-Za-z]|$)/;
 
 /** Resolve a symbol: exact override, exact default, then the subscript-free base. */
-function resolver(overrides: Record<string, string>, latex: string) {
+function resolver(overrides: Record<string, string>, latex: string, designated: ReadonlySet<string> | null = null) {
   const planck = CONTEXT_PLANCK.test(latex);
   return (name: string): { dims: DimVec | null; def: SymbolDefault | null; source: SymbolInfo["source"]; key: string } => {
     const base = name.replace(/_.*$/, "");
@@ -1050,6 +1257,8 @@ function resolver(overrides: Record<string, string>, latex: string) {
         const d = parseOverride(overrides[key]);
         return { dims: d, def: null, source: d ? "override" : "unknown", key };
       }
+      // A generic letter is only physical when a law, the prose or the user says so.
+      if (designated && GENERIC.has(key) && !designated.has(key)) continue;
       const def = key === "h" && planck ? PLANCK : DEFAULT_SYMBOLS[key];
       if (def) return { dims: QUANTITY_BY_ID.get(def.quantity)?.dims ?? null, def, source: "default", key };
     }
@@ -1058,9 +1267,38 @@ function resolver(overrides: Record<string, string>, latex: string) {
 }
 
 /** Check one relation (or chain). */
-export function analyzeEquation(latex: string, overrides: Record<string, string> = {}, line: number | null = null): EquationResult {
+export function analyzeEquation(latex: string, overrides: Record<string, string> = {}, line: number | null = null, opts: UnitsOptions = {}): EquationResult {
   const src = clean(latex);
-  const resolve = resolver(overrides, src);
+  // First pass: which symbols are there? Then decide what kind of equation it is.
+  const symbolsOf = (() => {
+    const c: Ctx = { src, lookup: () => null, notes: [], unknown: new Set(), seen: new Set() };
+    try {
+      const t = ltokenize(src);
+      const p = new Parser(t, c, false, 0, t.length);
+      while (p.i < t.length) {
+        p.expr();
+        p.i++;
+      }
+    } catch {
+      // Unreadable: classified on its text alone.
+    }
+    return [...c.seen];
+  })();
+  const cls = classifyEquation(src, symbolsOf, overrides, opts);
+  if (cls.kind === "abstract") {
+    return {
+      latex: src,
+      line,
+      status: "abstract",
+      kind: "abstract",
+      kindReason: cls.reason,
+      sides: [],
+      message: "Abstract mathematics (" + cls.reason + ") - treated as dimensionless, not checked",
+      notes: [],
+      symbols: [],
+    };
+  }
+  const resolve = resolver(overrides, src, cls.designated);
   const ctx: Ctx = { src, lookup: (n) => resolve(n).dims, notes: [], unknown: new Set(), seen: new Set() };
   const toks = ltokenize(src);
   // Split at top-level relations.
@@ -1071,7 +1309,7 @@ export function analyzeEquation(latex: string, overrides: Record<string, string>
     else if (t.t === "close" || (t.t === "cmd" && t.v === "right")) depth--;
     else if (depth === 0 && isRelation(t)) cuts.push({ at: k, rel: t.v });
   });
-  const result: EquationResult = { latex: src, line, status: "skipped", sides: [], message: "", notes: ctx.notes, symbols: [] };
+  const result: EquationResult = { latex: src, line, status: "skipped", kind: "physical", kindReason: cls.reason, sides: [], message: "", notes: ctx.notes, symbols: [] };
   if (!cuts.length) {
     result.message = "No relation (=, \\approx, \\le) to check";
     return result;
@@ -1114,7 +1352,11 @@ export function analyzeEquation(latex: string, overrides: Record<string, string>
   }
   const symbols = [...ctx.seen];
   result.symbols = symbols;
-  for (const u of ctx.unknown) ctx.notes.push({ kind: "unknown", message: "Unknown symbol " + u + " - assign a dimension" });
+  for (const u of ctx.unknown)
+    ctx.notes.push({
+      kind: "unknown",
+      message: GENERIC.has(u.replace(/_.*$/, "")) ? u + " is a generic letter - assign a dimension if it is physical" : "Unknown symbol " + u + " - assign a dimension",
+    });
   for (const s of symbols) {
     const r = resolve(s);
     if (r.def?.note && r.source === "default") ctx.notes.push({ kind: "assumption", message: s + ": " + r.def.description + " (" + r.def.note + ")" });
@@ -1139,12 +1381,58 @@ export function analyzeEquation(latex: string, overrides: Record<string, string>
   return result;
 }
 
-/** Check every equation and collect the symbol table they used. */
-export function analyzeUnits(equations: EquationSource[], overrides: Record<string, string> = {}): UnitsAnalysis {
-  const results = equations.map((e) => analyzeEquation(e.latex, overrides, e.line));
+/** `V_{BR}` and `\mathbf{F}` the way the parser names them: `V_BR`, `F`. */
+export function unitSymbolName(latex: string): string {
+  return latex
+    .replace(/\\(?:mathbf|boldsymbol|bm|mathrm|mathit|vec)\s*\{([^{}]*)\}/g, "$1")
+    .replace(/[{}\s]/g, "");
+}
+
+/** AI-inferred units that parse, keyed by parser name; blanks and "dimensionless" are left out. */
+export function aiUnitOverrides(ai: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [sym, units] of Object.entries(ai)) {
+    const u = units.trim();
+    if (!u || /^(-|n\/a|none|dimensionless|unitless|1)$/i.test(u)) continue;
+    if (parseUnitExpression(u)) out[unitSymbolName(sym)] = u;
+  }
+  return out;
+}
+
+const aiSymbolOf = (ai: Record<string, string> | undefined, key: string) => Object.keys(ai ?? {}).find((k) => unitSymbolName(k) === key) ?? key;
+
+/** Prose of a document: the text with its maths removed. */
+export function proseOf(src: string): string {
+  return tokenize(src)
+    .tokens.filter((t) => t.kind === "text")
+    .map((t) => t.value)
+    .join(" ");
+}
+
+/**
+ * Check every equation and collect the symbol table they used. `doc` is the
+ * whole source, read for physics vocabulary and prose definitions; `forced`
+ * holds the user's per-equation decisions, keyed by the equation's LaTeX.
+ */
+export function analyzeUnits(
+  equations: EquationSource[],
+  userOverrides: Record<string, string> = {},
+  context: { doc?: string; forced?: Record<string, EquationKind>; ai?: Record<string, string> } = {},
+): UnitsAnalysis {
+  // Units the AI analysis inferred (symbol -> "V/cm") rank below the user's own.
+  const fromAi = aiUnitOverrides(context.ai ?? {});
+  const overrides = { ...fromAi, ...userOverrides };
+  const isAi = (k: string) => fromAi[k] !== undefined && userOverrides[k] === undefined;
+  const doc = context.doc ? proseOf(context.doc) : "";
+  const definitions: Record<string, string> = {};
+  if (context.doc) for (const s of extractSymbols(context.doc, DEFAULT_SYMBOL_OPTIONS).symbols) if (s.description) definitions[s.latex] = s.description;
+  const results = equations.map((e) =>
+    analyzeEquation(e.latex, overrides, e.line, { near: e.context, doc, definitions, force: context.forced?.[clean(e.latex)] }),
+  );
   const symbols = new Map<string, SymbolInfo>();
   for (const r of results) {
-    const resolve = resolver(overrides, r.latex);
+    if (r.kind === "abstract") continue;
+    const resolve = resolver(overrides, r.latex, classifyEquation(r.latex, r.symbols, overrides, { near: equations.find((e) => clean(e.latex) === r.latex)?.context, doc, definitions, force: context.forced?.[r.latex] }).designated);
     for (const s of r.symbols) {
       if (symbols.has(s) && symbols.get(s)!.source !== "unknown") continue;
       const x = resolve(s);
@@ -1154,8 +1442,8 @@ export function analyzeUnits(equations: EquationSource[], overrides: Record<stri
         quantity: x.def?.quantity ?? q?.id ?? "",
         dims: x.dims,
         dimsText: x.dims ? describeDims(x.dims) : "unknown",
-        source: x.source,
-        description: x.def?.description ?? (x.source === "override" ? "your override" : "assign a dimension"),
+        source: x.source === "override" && isAi(x.key) ? "ai" : x.source,
+        description: x.def?.description ?? (x.source === "override" ? (isAi(x.key) ? "from the AI analysis: " + context.ai?.[aiSymbolOf(context.ai, x.key)] : "your override") : "assign a dimension"),
         note: x.def?.note,
       });
     }

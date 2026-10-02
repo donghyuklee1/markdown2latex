@@ -767,3 +767,5 @@ html[data-resizing="y"] * {
 @keyframes ob-float { 50% { transform: translate(-50%, -4px); } }
 @keyframes ob-spin { to { transform: rotate(360deg); } }
 @keyframes ob-ring { from { opacity: 0.7; transform: scale(1); } to { opacity: 0; transform: scale(1.45); } }
+.ob-scan { animation: ob-scan 1.4s ease-in-out infinite alternate; }
+@keyframes ob-scan { from { top: 0; } to { top: calc(100% - 3rem); } }

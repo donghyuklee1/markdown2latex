@@ -10,6 +10,7 @@ import {
   Eraser,
   FileUp,
   Maximize2,
+  ScanText,
   Minimize2,
   Sparkles,
   WandSparkles,
@@ -20,12 +21,13 @@ import type { Diagnostic } from "@/lib/diagnostics";
 import { EXAMPLES } from "@/lib/defaultText";
 import { useToast } from "./Toast";
 import { IconButton } from "./ui";
+import { isConvertible, openImageConvert } from "./ai/ImageConvert";
 
 /** Must match the textarea's `pt-3` (0.75rem). */
 const PAD_TOP = 12;
 /** Anything bigger is almost certainly not a chat answer, and would make every keystroke slow. */
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
-const ACCEPT = ".md,.markdown,.mdx,.tex,.latex,.txt,text/plain,text/markdown,text/x-tex";
+const ACCEPT = ".md,.markdown,.mdx,.tex,.latex,.txt,text/plain,text/markdown,text/x-tex,image/png,image/jpeg,image/webp,image/heic,application/pdf";
 
 interface Props {
   value: string;
@@ -234,6 +236,11 @@ export default function MathInput({
   const openFile = useCallback(
     async (file: File | undefined) => {
       if (!file) return;
+      // Images and PDFs are read by the converter (Gemini), not as text.
+      if (isConvertible(file)) {
+        openImageConvert(file);
+        return;
+      }
       if (file.size > MAX_FILE_BYTES) {
         toast(file.name + " is over 2 MB - too large to clean live", "error");
         return;
@@ -377,6 +384,14 @@ export default function MathInput({
               const room = ta.scrollHeight - ta.clientHeight;
               onScrollRatio(room > 0 ? ta.scrollTop / room : 0);
             }}
+            onPaste={(e) => {
+              // A pasted screenshot or photo: convert it instead of pasting nothing.
+              const img = [...e.clipboardData.files].find(isConvertible);
+              if (img) {
+                e.preventDefault();
+                openImageConvert(img);
+              }
+            }}
             onKeyDown={(e) => {
               if (e.key === "Escape") {
                 e.currentTarget.blur();
@@ -385,7 +400,7 @@ export default function MathInput({
                 handleIndent(e, onChange);
               }
             }}
-            placeholder="Paste the messy math here, or drop a .md / .tex file."
+            placeholder="Paste the messy math here, drop a .md / .tex file - or paste an image of formulas."
             aria-label="Markdown and LaTeX math input"
             style={{ fontSize, lineHeight: lineHeight + "px" }}
             className="scroll-slim absolute inset-0 resize-none bg-transparent px-3 pb-20 pt-3 font-mono text-text caret-accent outline-none placeholder:text-faint focus-visible:ring-0 focus-visible:ring-offset-0"
@@ -397,6 +412,7 @@ export default function MathInput({
               <ExamplesMenu onPick={onPickExample} />
               <FloatingButton label="Open" icon={FileUp} onClick={() => fileRef.current?.click()} title="Open a .md, .tex or .txt file" />
               <FloatingButton label="Paste" icon={ClipboardPaste} onClick={paste} />
+              <FloatingButton label="Image → LaTeX" icon={ScanText} onClick={() => openImageConvert()} title="Convert a photo, screenshot or PDF of maths into LaTeX or Markdown (or just paste an image here)" />
               <FloatingButton
                 label="Clean clipboard"
                 icon={WandSparkles}

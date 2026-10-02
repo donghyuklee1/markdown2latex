@@ -10,6 +10,7 @@ import {
   FileDown,
   Image as ImageIcon,
   ImageDown,
+  HardDrive,
   FileText,
   Loader2,
   Pencil,
@@ -27,7 +28,8 @@ export type ExportId =
   | "copyPng"
   | "downloadSnippet"
   | "downloadDocument"
-  | "downloadPng";
+  | "downloadPng"
+  | "drive";
 
 interface Props {
   disabled: boolean;
@@ -56,6 +58,8 @@ const MENU: ReadonlyArray<
   { id: "downloadSnippet", label: (s) => "Download " + s, hint: "The clean output as a file", icon: FileDown, keys: "Mod+S" },
   { id: "downloadDocument", label: () => "Download full .tex document", hint: "Preamble included - compiles on its own", icon: FileCode2 },
   { id: "downloadPng", label: () => "Download PNG image", hint: "The live preview, rendered", icon: ImageDown },
+  "sep",
+  { id: "drive", label: () => "Save to Google Drive...", hint: "Source, clean LaTeX, full document or PNG", icon: HardDrive },
 ];
 
 /**

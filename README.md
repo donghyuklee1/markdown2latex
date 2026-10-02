@@ -233,6 +233,22 @@ Every rule is conservative by design: each one has a test where it must fire
   It works offline from the text alone; **Analyze with Gemini** adds roles,
   plain-language explanations and inferred definitions, using your own free
   key from [Google AI Studio](https://aistudio.google.com/apikey).
+- **AI mode** - paste your own Gemini key once (header **AI** switch, the
+  account menu, or the welcome tour) and AI mode is on at once: derivations are
+  analysed in the background as the mathematics changes, stale runs are
+  cancelled, and results are cached by the *normalized equations* - editing
+  prose or spacing never costs a new call. Signed in, the key can be kept in
+  your account, encrypted (Supabase Vault), for your other devices.
+- **Image to LaTeX / Markdown** - paste a screenshot or photo into the editor,
+  drop one (or a PDF), or press **Image → LaTeX**: Gemini transcribes the
+  formulas - or the whole page, text, lists and tables included - into
+  Markdown with `$...$` maths, a LaTeX body, or the formulas alone. Printed or
+  handwritten. Edit the result, then insert it at the cursor, replace the
+  document or open it in a new tab.
+- **Google Drive** - signed in, save the source, the clean LaTeX, a complete
+  `.tex` document or the rendered PNG to a "markdown2Latex" folder in your
+  Drive, and open files from Drive (left rail). Only the files the app saves
+  or you pick are visible to it (`drive.file`).
 
 ### Studio Workbench
 
@@ -358,7 +374,7 @@ src/
 
 ```bash
 npm run verify     # lint + typecheck + tests + production build - run before pushing
-npm test           # 769 checks in 28 spec files: engine rules (each with a
+npm test           # 790 checks in 28 spec files: engine rules (each with a
                    # must-not-fire test), KaTeX rendering of every example and
                    # starter, every Tool and Studio feature, idempotence
 npm run examples   # regenerate examples/ (CI fails if it is stale)
@@ -379,23 +395,21 @@ A few things are deliberate exceptions, and only happen when you click them:
 **Open in Overleaf** sends the document to Overleaf (that is the point of it);
 **PNG export** loads this site's own KaTeX font files to draw the image - no text
 goes with that request; the **arXiv extractor** sends the paper ID to arxiv.org;
-and **Analyze with Gemini** sends the document to Google's Gemini API, either
-through this site's one server route with the site's key (rate-limited, nothing
-stored or logged), or directly from your browser with *your* key if you add one
-(it stays in your browser). On Google's free tier, prompts may be used to
-improve their models.
+**Gemini** (AI mode, Analyze, Image → LaTeX) is used only with *your own* key,
+directly from your browser to Google - there is no shared key and no server of
+ours in between - and AI mode can be switched off at any time; **Google Drive**
+is reached only when you save to or open from it. On Google's free tier,
+prompts may be used to improve their models.
 
 ### Deploying
 
 The site deploys to Vercel as-is (`vercel --prod`, or connect the GitHub repo
-for a deploy on every push). To let visitors use Analyze with no setup, set a
-free [Google AI Studio](https://aistudio.google.com/apikey) key as the
-`GEMINI_API_KEY` environment variable; optional `GEMINI_MODEL` pins a model and
-`GEMINI_DAILY_LIMIT` (default 400) caps shared analyses per day. Without a key
-the site still works, and visitors can paste their own. See `.env.example`.
+for a deploy on every push). It needs no secrets: AI features use each
+visitor's own Gemini key. Optional public settings for accounts and Google
+Drive are listed in `.env.example`.
 
 The first sign-in opens a short animated tour of the app (replay it any time
-from the account menu). Sign-in with Google and GitHub, and cloud history, use Supabase: one SQL file
+from the account menu). Sign-in with Google and GitHub, and cloud history, use Supabase: a few SQL files
 and two public env vars, set up in about ten minutes - see
 [docs/ACCOUNTS.md](docs/ACCOUNTS.md), which also explains how it stays fast as
 users grow (browser-direct, per-user indexed rows, row-level security, local-first

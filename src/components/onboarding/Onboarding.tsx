@@ -7,6 +7,7 @@ import { GeminiStar } from "@/components/BrandMark";
 import BrandMark from "@/components/BrandMark";
 import { markSeen, ONBOARDING_KEY, reviveOnboarding, shouldOnboard } from "@/lib/onboarding";
 import { accountStore } from "../account/cloud";
+import { KeyForm } from "../ai/AiKeyDialog";
 import { Avatar } from "../account/AccountDock";
 
 /* --------------------------------------------- open/close from anywhere */
@@ -222,7 +223,27 @@ function AccountArt() {
   );
 }
 
-const STEPS = [
+/** AI mode: Gemini working beside the editor. */
+function AiArt() {
+  return (
+    <div className="flex h-full items-center justify-center gap-6 px-6">
+      <span className="ob-ring relative flex h-14 w-14 items-center justify-center rounded-2xl border border-border bg-surface shadow-md">
+        <span className="ob-spin inline-flex">
+          <GeminiStar size={28} />
+        </span>
+      </span>
+      <div className="space-y-2">
+        {["Explains derivations as you write", "Image \u2192 LaTeX / Markdown", "Fills in units for the unit check"].map((t, i) => (
+          <div key={t} className="ob-pop flex items-center gap-2 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-[11px] font-semibold text-text shadow-sm" style={{ animationDelay: 200 + i * 220 + "ms" }}>
+            <Check size={12} className="text-ok" /> {t}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const STEPS: Array<{ art: () => React.JSX.Element; title: (name: string) => string; body: string; extra?: () => React.JSX.Element }> = [
   {
     art: CleanArt,
     title: (name: string) => (name ? "Welcome, " + name.split(" ")[0] + "!" : "Welcome!"),
@@ -242,6 +263,12 @@ const STEPS = [
     art: DerivationArt,
     title: () => "Understand the derivation",
     body: "Derivation notes show how your equations build on each other - top-down from the result or bottom-up from the definitions. Analyze with Gemini adds plain-language explanations and a notation table.",
+  },
+  {
+    art: AiArt,
+    title: () => "Turn on AI mode (optional)",
+    body: "Paste your own free Gemini key and AI mode switches on at once. Nothing is sent until you do, and the key goes only to Google.",
+    extra: () => <KeyForm compact />,
   },
   {
     art: AccountArt,
@@ -321,6 +348,7 @@ export default function Onboarding() {
               {S.title(acc.profile?.name ?? "")}
             </h2>
             <p className="min-h-[60px] text-[13px] leading-relaxed text-muted">{S.body}</p>
+            {S.extra && <div className="pb-1">{S.extra()}</div>}
           </div>
         </div>
         <div className="flex items-center gap-2 px-6 pb-5 pt-2">

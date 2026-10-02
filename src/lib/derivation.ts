@@ -606,3 +606,32 @@ export function fallbackModels(chosen: string, ranked: ReadonlyArray<ModelInfo>,
     .sort((a, b) => Number(stable(b)) - Number(stable(a)) || Number(/flash/.test(b)) - Number(/flash/.test(a)));
   return [chosen, ...others.slice(0, extra)].filter(Boolean);
 }
+
+/* ------------------------------------------------------ analysis cache key */
+
+/**
+ * One equation reduced to what it says: spacing commands, \left / \right,
+ * \displaystyle, labels, tags and whitespace removed. `E = m c^2` and
+ * `E=mc^{2}` agree.
+ */
+export function normalizeEquation(latex: string): string {
+  return latex
+    .replace(/\\(label|tag\*?|eqref|ref)\s*\{[^{}]*\}/g, "")
+    .replace(/\\(nonumber|notag|displaystyle|textstyle|left|right|big|Big|bigg|Bigg)(?![A-Za-z])/g, "")
+    .replace(/\\[,;:! ]|\\q?quad(?![A-Za-z])|~/g, "")
+    .replace(/\^\{(\w)\}/g, "^$1")
+    .replace(/_\{(\w)\}/g, "_$1")
+    .replace(/\s+/g, "")
+    .replace(/[.,;]+$/, "");
+}
+
+/**
+ * The analysis cache key: the document's display equations, normalized, in
+ * order. Edits to prose, spacing or formatting keep the key - and the cached
+ * analysis - so only a real change to the mathematics costs a new LLM call.
+ * Documents without display equations fall back to their whole text.
+ */
+export function analysisKey(input: string, hash: (s: string) => string): string {
+  const eqs = offlineModel(input).steps.map((s) => normalizeEquation(s.latex));
+  return hash(eqs.length ? "eq:" + eqs.join("\n") : "txt:" + input.trim());
+}

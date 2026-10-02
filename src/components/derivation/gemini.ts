@@ -1,13 +1,10 @@
 /**
- * gemini.ts - two ways to reach Gemini, both only when the user clicks Analyze:
- *
- *  - with the user's own key: the browser calls Google directly; the key lives
- *    in this browser's storage and travels only to Google, in a header;
- *  - without one: the site's route (/api/analyze) calls Gemini with the site's
- *    key. It accepts only the document and builds the prompt itself, so it is
- *    not a general-purpose proxy, and it rate-limits each visitor.
- *
- * Either way the answer is validated by `mergeAi` against the offline model.
+ * gemini.ts - the browser talks to Google's Gemini API directly with the
+ * user's own key (there is no server of ours in between, and no shared key).
+ * The key travels only to Google, in a header. Every request is a prompt from
+ * lib/derivation (or lib/ocr) with a JSON response schema, and every answer is
+ * validated before use. Requests can be cancelled (AbortSignal), so a stale
+ * background analysis never wastes the user's quota after the text changes.
  */
 import { fallbackModels, geminiAnswer, geminiRequest, rankModels, rejectsThinking, retryable, type AiPart, type ModelInfo } from "@/lib/derivation";
 
@@ -26,11 +23,12 @@ export class AiError extends Error {
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function call(path: string, key: string, init?: RequestInit): Promise<unknown> {
+export async function call(path: string, key: string, init?: RequestInit): Promise<unknown> {
   let res: Response;
   try {
     res = await fetch(API + path, { ...init, headers: { "content-type": "application/json", "x-goog-api-key": key, ...(init?.headers ?? {}) } });
-  } catch {
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") throw e;
     throw new AiError("Could not reach Google - check your connection.");
   }
   const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
@@ -45,8 +43,16 @@ async function call(path: string, key: string, init?: RequestInit): Promise<unkn
   return body;
 }
 
-export async function listModels(key: string): Promise<ModelInfo[]> {
-  return rankModels(await call("/models?pageSize=200", key));
+/* The model list doubles as the key check; one call per key per session. */
+const modelCache = new Map<string, Promise<ModelInfo[]>>();
+export function listModels(key: string): Promise<ModelInfo[]> {
+  let p = modelCache.get(key);
+  if (!p) {
+    p = call("/models?pageSize=200", key).then(rankModels);
+    p.catch(() => modelCache.delete(key));
+    modelCache.set(key, p);
+  }
+  return p;
 }
 
 function parse(text: string): unknown {
@@ -63,20 +69,21 @@ export interface PartAnswer {
 }
 
 /**
- * One part of the analysis with the user's own key, straight from the browser
- * to Google. A busy model (503 "high demand", 429, 500) is retried once after a
- * short pause, then the next model in line is tried; a model that rejects the
- * thinking setting is asked again without it.
+ * One structured request with the user's own key, straight from the browser
+ * to Google. `build(model, thinking)` makes the body. A busy model (503 "high
+ * demand", 429, 500) is retried once after a short pause, then the next model
+ * in line is tried; a model that rejects the thinking setting is asked again
+ * without it. Returns the parsed JSON answer and the model that gave it.
  */
-export async function analyzePart(input: string, part: AiPart, key: string, model: string): Promise<PartAnswer> {
+export async function generateJson(build: (model: string, thinking: boolean) => object, key: string, model: string, signal?: AbortSignal): Promise<PartAnswer> {
   let models = [model];
   let last: AiError | null = null;
   for (let i = 0; i < models.length; i++) {
     let thinking = true;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const body = JSON.stringify(geminiRequest(input, part, models[i], thinking));
-        const answer = geminiAnswer(await call("/models/" + encodeURIComponent(models[i]) + ":generateContent", key, { method: "POST", body }));
+        const body = JSON.stringify(build(models[i], thinking));
+        const answer = geminiAnswer(await call("/models/" + encodeURIComponent(models[i]) + ":generateContent", key, { method: "POST", body, signal }));
         if ("error" in answer) throw new AiError(answer.error);
         return { json: parse(answer.text), model: models[i] };
       } catch (e) {
@@ -92,28 +99,10 @@ export async function analyzePart(input: string, part: AiPart, key: string, mode
     }
     if (i === 0) models = fallbackModels(model, await listModels(key).catch(() => []));
   }
-  throw last ?? new AiError("Analysis failed.");
+  throw last ?? new AiError("Gemini did not answer.");
 }
 
-/** Whether this deployment has a site key (false on static hosts and locally without one). */
-export async function siteAvailable(): Promise<boolean> {
-  try {
-    const res = await fetch("/api/analyze", { method: "GET" });
-    return res.ok && ((await res.json()) as { configured?: boolean }).configured === true;
-  } catch {
-    return false;
-  }
-}
-
-/** One part without a key of the user's own: through the site's route. */
-export async function analyzePartViaSite(input: string, part: AiPart): Promise<PartAnswer> {
-  let res: Response;
-  try {
-    res = await fetch("/api/analyze", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ input, part }) });
-  } catch {
-    throw new AiError("Could not reach the server - check your connection.");
-  }
-  const body = (await res.json().catch(() => ({}))) as { text?: string; model?: string; error?: string };
-  if (!res.ok || !body.text) throw new AiError(body.error ?? "Analysis failed (" + res.status + ").", res.status);
-  return { json: parse(body.text), model: body.model ?? "" };
+/** One part of the derivation analysis. */
+export function analyzePart(input: string, part: AiPart, key: string, model: string, signal?: AbortSignal): Promise<PartAnswer> {
+  return generateJson((m, thinking) => geminiRequest(input, part, m, thinking), key, model, signal);
 }

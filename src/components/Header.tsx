@@ -9,6 +9,7 @@ import ThemeToggle from "./ThemeToggle";
 import { GithubMark } from "./account/icons";
 import { AccountButton } from "./account/AccountDock";
 import { SignInButton } from "./account/LoginScreen";
+import AiModeToggle from "./ai/AiModeToggle";
 
 
 function Wordmark() {
@@ -68,6 +69,7 @@ export default function Header() {
           <span className="hidden sm:inline">Buy me a coffee</span>
         </a>
 
+        <AiModeToggle />
         <ShortcutsButton />
         <ThemeToggle />
         <PalettePicker />

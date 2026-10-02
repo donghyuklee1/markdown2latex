@@ -54,3 +54,27 @@ them to every device. The Gemini API key is never synced.
    what protects the data. Redeploy - `NEXT_PUBLIC_*` values are built in.
 
 For local development put the same two lines in `.env.local`.
+
+## Google Drive (optional)
+
+Google sign-in already asks for `drive.file` (only the files the app saves or
+the user picks). To make Drive work fully:
+
+1. In the Google Cloud project of the OAuth client: **APIs & Services ->
+   Library**, enable the **Google Drive API** (and the **Google Picker API**
+   for "Browse all of Drive").
+2. **Google Auth Platform -> Data access**: add the scope
+   `https://www.googleapis.com/auth/drive.file`.
+3. Vercel env: `NEXT_PUBLIC_GOOGLE_CLIENT_ID` = the OAuth client id (public).
+   It lets Drive reconnect in a popup when the hour-long sign-in token expires,
+   and lets GitHub users connect Drive too. The client's **Authorized
+   JavaScript origins** must include the site.
+4. For "Browse all of Drive": create an **API key** restricted to the Picker
+   API and to the site's address, and set it as `NEXT_PUBLIC_GOOGLE_API_KEY`.
+
+## Gemini key in the account
+
+Run `20261004000000_gemini_key_vault.sql`: the key is stored with Supabase
+Vault (encrypted at rest) and reachable only through `get_gemini_key` /
+`set_gemini_key`, which act on the caller's own row. Vault is enabled on
+Supabase projects by default.

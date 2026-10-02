@@ -9,7 +9,8 @@ import SymbolPalette from "./rails/SymbolPalette";
 import SnippetsPanel from "./rails/SnippetsPanel";
 import HistoryPanel from "./rails/HistoryPanel";
 import OutlinePanel from "./rails/OutlinePanel";
-import { BookMarked, Boxes, FileCode2, FlaskConical, History, ListOrdered, Network, PenTool, Ruler, Shapes, X } from "lucide-react";
+import { BookMarked, Boxes, FileCode2, FlaskConical, HardDrive, History, ListOrdered, Network, PenTool, Ruler, Shapes, X } from "lucide-react";
+import DrivePanel from "./drive/DrivePanel";
 import { activeDoc, docs, docsStore, docTitle, fileBase, MAX_DOCS, snapshot, titleFromFileName } from "@/lib/documents";
 import type { StudioContext } from "./studio/types";
 import ControlBar from "./ControlBar";
@@ -43,10 +44,13 @@ import {
   OUTPUT_TABS,
   SPLIT_MAX,
   SPLIT_MIN,
+  aiStore,
   uiStore,
   type Focus,
   type UiPrefs,
 } from "@/lib/persistedStore";
+import { useAutoAnalysis } from "./ai/orchestrator";
+import ImageConvert from "./ai/ImageConvert";
 import { decodeShare, encodeShare, SHARE_MAX_CHARS, SHARE_PREFIX } from "@/lib/share";
 import { matchShortcut, type ShortcutId } from "@/lib/shortcuts";
 import { getThemeSnapshot, setTheme } from "@/lib/theme";
@@ -102,6 +106,9 @@ export default function Workspace() {
   const deferredBlocks = useDeferredValue(mathBlocks);
   // A pasted .tex document brings its own macros; KaTeX gets them everywhere.
   const deferredInput = useDeferredValue(input);
+  // AI mode: analyses run in the background as the mathematics changes.
+  const aiPrefs = useSyncExternalStore(aiStore.subscribe, aiStore.get, aiStore.getServer);
+  useAutoAnalysis(deferredInput, aiPrefs.mode, !!aiPrefs.apiKey);
   const docMode = useMemo(() => isDocument(deferredInput), [deferredInput]);
   const macros = useMemo(() => katexMacros(deferredInput), [deferredInput]);
   const diagnostics = useMemo(() => diagnose(deferredBlocks, macros), [deferredBlocks, macros]);
@@ -211,6 +218,8 @@ export default function Workspace() {
           downloadText(doc.source, base + "-document.tex");
           return toast("Saved " + base + "-document.tex" + (doc.engine === "xelatex" ? " - compile with XeLaTeX" : ""));
         }
+        case "drive":
+          return setLeftRail("drive");
         case "copyPng":
         case "downloadPng": {
           if (!output) return toast("Nothing to render yet", "info");
@@ -351,6 +360,22 @@ export default function Workspace() {
    * in bare (lib/insertion.ts). `@` marks where the selection goes. execCommand
    * keeps the edit on the browser's own undo stack.
    */
+  /** Raw text at the cursor as its own paragraph (converted images, Drive imports). */
+  const insertBlock = useCallback(
+    (text: string) => {
+      const ta = editorRef.current;
+      const at = ta ? ta.selectionStart : input.length;
+      const end = ta ? ta.selectionEnd : at;
+      const pre = input.slice(0, at);
+      const post = input.slice(end);
+      const before = !pre ? "" : pre.endsWith("\n\n") ? "" : pre.endsWith("\n") ? "\n" : "\n\n";
+      const after = !post ? "\n" : post.startsWith("\n") ? "\n" : "\n\n";
+      setInput(pre + before + text + after + post);
+      if (ui.focus === "output") setUi({ focus: "none" });
+    },
+    [input, setInput, ui.focus, setUi],
+  );
+
   const insertAtCursor = useCallback(
     (template: string, kind: "inline" | "display" = "inline") => {
       if (ui.focus === "output") setUi({ focus: "none" });
@@ -479,6 +504,31 @@ export default function Workspace() {
   };
   const leftItems: RailItem[] = [
     { id: "symbols", label: "Symbol palette", icon: Shapes, panel: <SymbolPalette onInsert={(tex) => insertAtCursor(tex, "inline")} /> },
+    {
+      id: "drive",
+      label: "Google Drive",
+      icon: HardDrive,
+      panel: (
+        <DrivePanel
+          exports={{
+            base,
+            source: () => input,
+            sourceExt: /\\documentclass/.test(input) ? "tex" : "md",
+            clean: () => output,
+            document: () => buildDocument().source,
+            png: () => renderPreviewPng(output, ui.fontSize, macros),
+          }}
+          onOpen={(text, name) => {
+            replaceInput(text, "Opened " + name + " from Drive");
+            setLeftRail(null);
+          }}
+          onOpenAsNew={(text, name) => {
+            if (docs.create(text, name) === null) toast("Up to " + MAX_DOCS + " tabs - close one first", "info");
+            setLeftRail(null);
+          }}
+        />
+      ),
+    },
     { id: "snippets", label: "Snippets", icon: BookMarked, panel: <SnippetsPanel getSelection={getSelection} output={output} onInsert={(latex) => insertAtCursor(latex, "display")} /> },
     {
       id: "history",
@@ -517,6 +567,13 @@ export default function Workspace() {
     // The rails sit in the side margins a wide screen leaves empty: the row is
     // widened by exactly their width, so the panes keep their size.
     <MacroContext.Provider value={macros}>
+    <ImageConvert
+      insert={insertBlock}
+      replace={(text) => replaceInput(text, "Converted an image")}
+      openAsNew={(text, title) => {
+        if (docs.create(text, title) === null) toast("Up to " + MAX_DOCS + " tabs - close one first", "info");
+      }}
+    />
     <main className="mx-auto flex w-full max-w-[1910px] flex-1 gap-2.5 p-3 sm:p-4 lg:min-h-0">
       <SideRail side="left" items={leftItems} open={leftRail} onOpen={setLeftRail} />
       <div className="flex min-w-0 flex-1 flex-col gap-2.5 lg:min-h-0">

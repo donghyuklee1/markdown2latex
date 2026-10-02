@@ -6,18 +6,22 @@
  * conventions; the user can override any of them, and overrides live only in
  * this component's state - nothing is persisted or sent anywhere.
  */
-import { useMemo, useState } from "react";
-import { CheckCircle2, ChevronDown, ChevronRight, CircleHelp, FlaskConical, RotateCcw, XCircle } from "lucide-react";
+import { useMemo, useState, useSyncExternalStore } from "react";
+import { analysisStore } from "@/lib/persistedStore";
+import { keyFor } from "../ai/orchestrator";
+import { Atom, CheckCircle2, ChevronDown, ChevronRight, CircleHelp, FlaskConical, RotateCcw, Sigma, XCircle } from "lucide-react";
 import { InlineMath } from "@/components/Katex";
 import { useToast } from "@/components/Toast";
 import { Button, IconAction, Notice, Segmented, Stats, TextInput, inputClass } from "@/components/lab/kit";
 import {
+  aiUnitOverrides,
   analyzeUnits,
   describeDims,
   equationsFromSource,
   parseOverride,
   QUANTITIES,
   SAMPLE_EQUATIONS,
+  type EquationKind,
   type EquationResult,
   type SymbolInfo,
   type UnitStatus,
@@ -38,6 +42,7 @@ function StatusTag({ status }: { status: UnitStatus }) {
     mismatch: { cls: "border-danger/30 bg-danger/[0.07] text-danger", label: "Mismatch", Icon: XCircle },
     incomplete: { cls: "border-accent/30 bg-accent/[0.07] text-accent", label: "Incomplete", Icon: CircleHelp },
     skipped: { cls: "border-border bg-surface-2 text-muted", label: "Not compared", Icon: CircleHelp },
+    abstract: { cls: "border-border bg-surface-2 text-muted", label: "Dimensionless \u00b7 skipped", Icon: Sigma },
   };
   const { cls, label, Icon } = tones[status];
   return (
@@ -47,7 +52,7 @@ function StatusTag({ status }: { status: UnitStatus }) {
   );
 }
 
-function ResultRow({ r, onSelect }: { r: EquationResult; onSelect?: () => void }) {
+function ResultRow({ r, onSelect, onKind }: { r: EquationResult; onSelect?: () => void; onKind: (k: EquationKind | undefined) => void }) {
   // The message already carries the first definite problem; do not repeat it.
   const notes = r.notes.filter((n) => n.message !== r.message);
   const body = (
@@ -61,6 +66,7 @@ function ResultRow({ r, onSelect }: { r: EquationResult; onSelect?: () => void }
         </span>
       </div>
       <div className={"mt-1 text-[12px] leading-snug " + (r.status === "mismatch" ? "text-danger" : r.status === "consistent" ? "text-muted" : "text-faint")}>{r.message}</div>
+      {r.kind === "physical" && r.kindReason && <div className="mt-0.5 text-[11px] text-faint">Checked as physics: {r.kindReason}</div>}
       {notes.length > 0 && (
         <ul className="mt-1 space-y-0.5">
           {notes.map((n, i) => (
@@ -74,12 +80,41 @@ function ResultRow({ r, onSelect }: { r: EquationResult; onSelect?: () => void }
     </>
   );
   const cls = "block w-full rounded-lg border border-border bg-surface px-3 py-2 text-left";
-  if (!onSelect) return <li className={cls}>{body}</li>;
+  // The classifier can be overruled per equation: physics it missed, or maths it mistook.
+  const toggle = (
+    <button
+      type="button"
+      onClick={() => onKind(r.kindReason.startsWith("marked") ? undefined : r.kind === "abstract" ? "physical" : "abstract")}
+      className="press mt-1 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium text-faint hover:bg-surface-2 hover:text-text"
+    >
+      {r.kindReason.startsWith("marked") ? (
+        <>
+          <RotateCcw size={11} /> Let the checker decide
+        </>
+      ) : r.kind === "abstract" ? (
+        <>
+          <Atom size={11} /> Check as physics
+        </>
+      ) : (
+        <>
+          <Sigma size={11} /> Treat as abstract maths
+        </>
+      )}
+    </button>
+  );
+  if (!onSelect)
+    return (
+      <li className={cls}>
+        {body}
+        {toggle}
+      </li>
+    );
   return (
-    <li>
-      <button type="button" onClick={onSelect} title={r.line ? "Select line " + r.line + " in the editor" : undefined} className={cls + " press press-soft hover:border-border-strong"}>
+    <li className="relative">
+      <button type="button" onClick={onSelect} title={r.line ? "Select line " + r.line + " in the editor" : undefined} className={cls + " press press-soft pb-7 hover:border-border-strong"}>
         {body}
       </button>
+      <span className="absolute bottom-1 left-2">{toggle}</span>
     </li>
   );
 }
@@ -124,6 +159,7 @@ function SymbolRow({ s, value, onChange }: { s: SymbolInfo; value: string | unde
         <span className={s.source === "unknown" && !parsed ? "text-accent" : ""}>{parsed ? describeDims(parsed) : isCustom && value.trim() ? "could not read these units" : s.dimsText}</span>
         {" - "}
         {s.source === "override" ? "your override" : s.description}
+        {s.source === "ai" && <span className="ml-1 rounded bg-[#4b8cf5]/10 px-1 text-[10px] font-semibold text-[#4b8cf5]">AI</span>}
         {s.note && value === undefined ? " (" + s.note + ")" : ""}
       </div>
     </li>
@@ -135,11 +171,32 @@ export default function UnitsPanel({ input, selectLines }: StudioContext) {
   const [source, setSource] = useState<Source>("doc");
   const [pasted, setPasted] = useState("");
   const [overrides, setOverrides] = useState<Record<string, string>>({});
+  const [forced, setForced] = useState<Record<string, EquationKind>>({});
   const [showTable, setShowTable] = useState(false);
 
   const equations = useMemo(() => (source === "doc" ? equationsFromSource(input) : equationsFromSource(pasted, false)), [source, input, pasted]);
-  const analysis = useMemo(() => analyzeUnits(equations, overrides), [equations, overrides]);
-  const checked = analysis.results.filter((r) => r.status !== "skipped");
+  // With an AI analysis of this document, its inferred units help decide what is physical.
+  const store = useSyncExternalStore(analysisStore.subscribe, analysisStore.get, analysisStore.getServer);
+  const aiUnits = useMemo(() => {
+    if (source !== "doc") return {};
+    const raw = store[keyFor(input)]?.result as { variables?: Array<{ symbol?: unknown; units?: unknown }> } | undefined;
+    const out: Record<string, string> = {};
+    for (const v of raw?.variables ?? []) if (typeof v.symbol === "string" && typeof v.units === "string" && v.units.trim()) out[v.symbol] = v.units;
+    return out;
+  }, [store, input, source]);
+  const aiCount = Object.keys(aiUnitOverrides(aiUnits)).length;
+  const analysis = useMemo(
+    () => analyzeUnits(equations, overrides, { doc: source === "doc" ? input : pasted, forced, ai: aiUnits }),
+    [equations, overrides, source, input, pasted, forced, aiUnits],
+  );
+  const checked = analysis.results.filter((r) => r.status !== "skipped" && r.status !== "abstract");
+  const setKind = (latex: string, k: EquationKind | undefined) =>
+    setForced((f) => {
+      const next = { ...f };
+      if (k) next[latex] = k;
+      else delete next[latex];
+      return next;
+    });
   const count = (s: UnitStatus) => analysis.results.filter((r) => r.status === s).length;
   const fromDoc = source === "doc";
   const unknownSymbols = analysis.symbols.filter((s) => s.source === "unknown").length;
@@ -162,7 +219,7 @@ export default function UnitsPanel({ input, selectLines }: StudioContext) {
     <div className="space-y-3 p-4">
       <div className="flex items-start gap-3">
         <p className="flex-1 text-[13px] leading-snug text-muted">
-          Dimensional analysis for every relation: both sides must carry the same SI dimensions, sums must agree, and sin / exp / log need dimensionless arguments.
+          Dimensional analysis for the physics in your document: both sides must carry the same SI dimensions, sums must agree, and sin / exp / log need dimensionless arguments. Abstract maths (losses, indices, a = b + c) is recognised and left unchecked.
         </p>
         <Button icon={FlaskConical} onClick={loadSample}>
           Load sample
@@ -191,12 +248,18 @@ export default function UnitsPanel({ input, selectLines }: StudioContext) {
         />
       )}
 
+      {aiCount > 0 && (
+        <Notice>
+          Using units for {aiCount} symbol{aiCount === 1 ? "" : "s"} from the AI analysis of this document. Your own choices in the symbol table always win.
+        </Notice>
+      )}
       <Stats
         items={[
           { label: "checked", value: checked.length },
           { label: "consistent", value: count("consistent"), tone: count("consistent") ? "ok" : undefined },
           { label: "mismatched", value: count("mismatch"), tone: count("mismatch") ? "danger" : undefined },
           { label: "incomplete", value: count("incomplete"), tone: count("incomplete") ? "warn" : undefined },
+          { label: "abstract", value: count("abstract") },
         ]}
       />
 
@@ -234,7 +297,7 @@ export default function UnitsPanel({ input, selectLines }: StudioContext) {
       ) : (
         <ul className="space-y-1.5">
           {analysis.results.map((r, i) => (
-            <ResultRow key={i} r={r} onSelect={fromDoc && r.line !== null ? () => selectLines(r.line!, r.line!) : undefined} />
+            <ResultRow key={i} r={r} onKind={(k) => setKind(r.latex, k)} onSelect={fromDoc && r.line !== null ? () => selectLines(r.line!, r.line!) : undefined} />
           ))}
         </ul>
       )}

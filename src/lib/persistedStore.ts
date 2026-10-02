@@ -158,15 +158,26 @@ export const draftStore = createPersistedStore<string | null>("cleanmath:draft:v
 /* -------------------------------------------------------------------- AI */
 
 export interface AiSettings {
-  /** The user's own Gemini API key; stays in this browser, sent only to Google. */
+  /** The user's own Gemini API key; stays in this browser (and, if they choose, encrypted in their account). */
   apiKey: string;
   /** Chosen model id ("" = pick the newest Flash model the key can use). */
   model: string;
+  /** AI mode: analyses run in the background as you write. On when a key is saved. */
+  mode: boolean;
+  /** Signed in: keep the key in the account (encrypted) so other devices get it. */
+  remember: boolean;
 }
 
-export const aiStore = createPersistedStore<AiSettings>("cleanmath:ai:v1", { apiKey: "", model: "" }, (raw) => {
+export const aiStore = createPersistedStore<AiSettings>("cleanmath:ai:v1", { apiKey: "", model: "", mode: false, remember: true }, (raw) => {
   const r = (raw ?? {}) as Partial<AiSettings>;
-  return { apiKey: typeof r.apiKey === "string" ? r.apiKey : "", model: typeof r.model === "string" ? r.model : "" };
+  const apiKey = typeof r.apiKey === "string" ? r.apiKey : "";
+  return {
+    apiKey,
+    model: typeof r.model === "string" ? r.model : "",
+    // Keys saved before AI mode existed turn it on.
+    mode: typeof r.mode === "boolean" ? r.mode && !!apiKey : !!apiKey,
+    remember: typeof r.remember === "boolean" ? r.remember : true,
+  };
 });
 
 /* -------------------------------------------------------- analysis cache */
@@ -174,7 +185,7 @@ export const aiStore = createPersistedStore<AiSettings>("cleanmath:ai:v1", { api
 export interface CachedAnalysis {
   at: number;
   model: string;
-  /** A validated Derivation (lib/derivation.ts) - stored as data. */
+  /** Gemini's validated JSON (both parts merged), re-merged with the current text when shown. */
   result: unknown;
 }
 
