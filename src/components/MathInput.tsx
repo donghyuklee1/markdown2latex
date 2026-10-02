@@ -59,6 +59,7 @@ function FloatingButton({
   icon: Icon,
   tone = "neutral",
   title,
+  iconOnly = false,
   ...rest
 }: {
   label: string;
@@ -66,6 +67,8 @@ function FloatingButton({
   icon: typeof Eraser;
   tone?: "neutral" | "danger" | "accent";
   title?: string;
+  /** Self-explanatory icons drop their label (it stays as the tooltip), so the row fits on one line. */
+  iconOnly?: boolean;
 } & Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "onClick">) {
   return (
     <button
@@ -74,7 +77,8 @@ function FloatingButton({
       title={title ?? label}
       aria-label={label}
       className={
-        "press flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium shadow-lg shadow-black/10 backdrop-blur " +
+        "press flex items-center gap-1.5 rounded-lg border py-1.5 text-xs font-medium shadow-lg shadow-black/10 backdrop-blur " +
+        (iconOnly ? "px-2 " : "px-2.5 ") +
         (tone === "danger"
           ? "border-border bg-surface/95 text-muted hover:border-danger/40 hover:text-danger"
           : tone === "accent"
@@ -84,7 +88,7 @@ function FloatingButton({
       {...rest}
     >
       <Icon size={13} strokeWidth={2.5} />
-      <span className="hidden sm:inline">{label}</span>
+      {!iconOnly && <span className="hidden sm:inline">{label}</span>}
     </button>
   );
 }
@@ -411,7 +415,7 @@ export default function MathInput({
             <div className="pointer-events-auto flex flex-wrap justify-end gap-2">
               <ExamplesMenu onPick={onPickExample} />
               <FloatingButton label="Open" icon={FileUp} onClick={() => fileRef.current?.click()} title="Open a .md, .tex or .txt file" />
-              <FloatingButton label="Paste" icon={ClipboardPaste} onClick={paste} />
+              <FloatingButton label="Paste" icon={ClipboardPaste} onClick={paste} iconOnly />
               <FloatingButton label="Image → LaTeX" icon={ScanText} onClick={() => openImageConvert()} title="Convert a photo, screenshot or PDF of maths into LaTeX or Markdown (or just paste an image here)" />
               <FloatingButton
                 label="Clean clipboard"
@@ -420,7 +424,7 @@ export default function MathInput({
                 onClick={onCleanClipboard}
                 title="Paste, clean and copy back in one go (Alt+V)"
               />
-              <FloatingButton label="Clear" onClick={onClear} icon={Eraser} tone="danger" />
+              <FloatingButton label="Clear" onClick={onClear} icon={Eraser} tone="danger" iconOnly />
             </div>
           </div>
           <input

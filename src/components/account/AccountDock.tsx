@@ -279,12 +279,11 @@ export function AccountButton() {
 }
 
 /**
- * The account circle, bottom left, centred in the blank margin left of the
- * panes. That margin is the page's side offset (when the screen is wider than
- * the 1910px layout) plus the 1rem padding, the 44px rail column and its
- * 10px gap; the 40px circle sits in its middle.
+ * The account circle, bottom left, directly under the left rail - which is
+ * itself centred in the margin beside the panes (1rem either side).
  */
-const DOCK_LEFT = "calc((max(0px, (100vw - 1910px) / 2) + 70px) / 2 - 20px)";
+/** Page offset + 1rem padding + (44px rail - 40px circle) / 2. */
+const DOCK_LEFT = "calc(max(0px, (100vw - 1910px) / 2) + 18px)";
 
 export default function AccountDock() {
   return (
@@ -316,7 +315,7 @@ function WelcomeCard() {
   return (
     <div
       role="status"
-      className="themed fixed bottom-4 left-4 z-[60] flex animate-pop-in items-center gap-3 rounded-2xl border border-border bg-surface py-2.5 pl-2.5 pr-3 shadow-2xl shadow-black/15 lg:bottom-3.5 lg:left-[calc((max(0px,(100vw-1910px)/2)+70px)/2+32px)]"
+      className="themed fixed bottom-4 left-4 z-[60] flex animate-pop-in items-center gap-3 rounded-2xl border border-border bg-surface py-2.5 pl-2.5 pr-3 shadow-2xl shadow-black/15 lg:bottom-3.5 lg:left-[calc(max(0px,(100vw-1910px)/2)+70px)]"
     >
       <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent/15 text-accent ring-2 ring-accent/30">
         <Avatar size={44} />

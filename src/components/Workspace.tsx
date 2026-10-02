@@ -574,7 +574,9 @@ export default function Workspace() {
         if (docs.create(text, title) === null) toast("Up to " + MAX_DOCS + " tabs - close one first", "info");
       }}
     />
-    <main className="mx-auto flex w-full max-w-[1910px] flex-1 gap-2.5 p-3 sm:p-4 lg:min-h-0">
+    {/* lg:gap-4 matches the 1rem page padding, so each rail sits centred in its
+        margin: 16px | rail | 16px | panes | 16px | rail | 16px. */}
+    <main className="mx-auto flex w-full max-w-[1910px] flex-1 gap-2.5 p-3 sm:p-4 lg:min-h-0 lg:gap-4">
       <SideRail side="left" items={leftItems} open={leftRail} onOpen={setLeftRail} />
       <div className="flex min-w-0 flex-1 flex-col gap-2.5 lg:min-h-0">
       <DocTabs />
