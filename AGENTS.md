@@ -32,7 +32,13 @@ all deliberate, each started by an explicit user action:
   and every answer is validated (`mergeAi`, `parseOcr`) before use. Signed-in
   users may keep the key in their account: Supabase Vault, encrypted, reachable
   only through `get_gemini_key` / `set_gemini_key` (`tests/db.spec.ts`).
-- **Accounts** (`components/account/cloud.ts`, `docs/ACCOUNTS.md`): only after
+- **Accounts** (`components/account/cloud.ts`, `docs/ACCOUNTS.md`). With
+  accounts configured the app is behind a sign-in gate (`AuthGate.tsx`), and
+  every account's local data lives in its own storage space
+  (`lib/storageScope.ts`): every store must read and write through
+  `scopedKey`, never a raw `cleanmath:` key, or one account's data leaks into
+  another's on a shared device. Signing out sends everything (documents
+  included) and then wipes the account's space. Only after
   the user signs in with Google or GitHub, their snapshots, analyses and
   preferences sync to Supabase, straight from the browser. Row-level security
   is the access control (`tests/db.spec.ts`); the Gemini key is never part of

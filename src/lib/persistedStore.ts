@@ -6,8 +6,11 @@
  * - hands useSyncExternalStore a referentially stable snapshot,
  * - renders the defaults on the server, so the first paint is hydration-safe,
  * - follows other tabs through the `storage` event,
- * - never throws when storage is unavailable (private mode, quota, blocked).
+ * - never throws when storage is unavailable (private mode, quota, blocked),
+ * - belongs to the signed-in account: its key is scoped (storageScope.ts) and
+ *   it re-reads when the account changes.
  */
+import { currentScope, onScopeChange, scopedKey } from "./storageScope";
 
 export interface PersistedStore<T> {
   get: () => T;
@@ -31,11 +34,18 @@ export function createPersistedStore<T>(
     for (const l of listeners) l();
   };
 
+  // Another account: forget the cached value, show theirs.
+  onScopeChange(() => {
+    cached = null;
+    notify();
+  });
+
   const get = (): T => {
     if (cached !== null) return cached;
     try {
-      const raw = window.localStorage.getItem(key);
-      cached = raw === null ? (migrate?.() ?? defaults) : revive(JSON.parse(raw));
+      const raw = window.localStorage.getItem(scopedKey(key));
+      // Old unscoped data is only ever adopted outside any account.
+      cached = raw === null ? ((currentScope() ? null : migrate?.()) ?? defaults) : revive(JSON.parse(raw));
     } catch {
       cached = defaults;
     }
@@ -45,7 +55,7 @@ export function createPersistedStore<T>(
   const set = (next: T) => {
     cached = next;
     try {
-      window.localStorage.setItem(key, JSON.stringify(next));
+      window.localStorage.setItem(scopedKey(key), JSON.stringify(next));
     } catch {
       // Quota or disabled storage: the in-memory value still works this session.
     }
@@ -58,7 +68,7 @@ export function createPersistedStore<T>(
     subscribe(listener) {
       listeners.add(listener);
       const onStorage = (event: StorageEvent) => {
-        if (event.key !== null && event.key !== key) return;
+        if (event.key !== null && event.key !== scopedKey(key)) return;
         cached = null;
         notify();
       };

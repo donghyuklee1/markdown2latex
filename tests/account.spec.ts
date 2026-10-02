@@ -1,5 +1,5 @@
 import { check, finish } from "./harness";
-import { changedKeys, hashText, initials, pickSettings, profileFrom, reviveEntry, reviveSettings, snapshotRow, SYNC_KEYS, UploadQueue } from "../src/lib/account";
+import { changedKeys, docChanges, mergeDocs, hashText, initials, pickSettings, profileFrom, reviveEntry, reviveSettings, snapshotRow, SYNC_KEYS, UploadQueue } from "../src/lib/account";
 import type { Snapshot } from "../src/lib/documents";
 
 /* --- hashing ------------------------------------------------------------------- */
@@ -53,4 +53,20 @@ const github = profileFrom({ id: "u2", email: "", user_metadata: { user_name: "o
 check("profile: GitHub without a full name uses the login", [github?.name, github?.provider].join("|"), "octo|github");
 check("profile: no user, no profile", String(profileFrom(null)), "null");
 check("initials", [initials("Ada Lovelace"), initials("octo"), initials("  ")].join(" "), "AL O ?");
+
+/* --- documents ----------------------------------------------------------------- */
+const doc = (id: string, text: string, updatedAt: number, title = "") => ({ id, title, text, updatedAt });
+const row = (id: string, text: string, at: number, position: number) => ({ id, title: "", text, position, updated_at: new Date(at).toISOString() });
+const merged = mergeDocs([doc("a", "local newer", 300), doc("b", "only here", 100)], [row("c", "only there", 50, 0), row("a", "cloud older", 200, 1)], 12);
+check("merge: the account's order first, then documents only on this device", merged.map((d) => d.id).join(","), "c,a,b");
+check("merge: per document the newer edit wins", merged.find((d) => d.id === "a")!.text ?? "", "local newer");
+check("merge: a newer cloud copy replaces an older local one", mergeDocs([doc("a", "old", 1)], [row("a", "new", 9, 0)], 12)[0].text ?? "", "new");
+check("merge: capped at the tab limit", String(mergeDocs([doc("a", "", 1), doc("b", "", 1)], [], 1).length), "1");
+check("merge: junk rows are ignored", String(mergeDocs([], [null, { title: "x" }], 12).length), "0");
+const first = docChanges(new Map(), [doc("a", "x", 1), doc("b", "y", 1)]);
+check("changes: everything is new the first time", first.upsert.map((r) => r.id).join(",") + " / " + first.remove.length, "a,b / 0");
+const second = docChanges(first.next, [doc("a", "x", 1), doc("b", "y2", 2)]);
+check("changes: only what changed is sent", second.upsert.map((r) => r.id).join(","), "b");
+const third = docChanges(second.next, [doc("b", "y2", 2)]);
+check("changes: a closed tab is removed (and the rest moved up)", third.remove.join(",") + " / " + third.upsert.map((r) => r.id + "@" + r.position).join(","), "a / b@0");
 finish("account");

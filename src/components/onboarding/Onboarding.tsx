@@ -6,16 +6,21 @@ import { InlineMath } from "@/components/Katex";
 import { GeminiStar } from "@/components/BrandMark";
 import BrandMark from "@/components/BrandMark";
 import { markSeen, ONBOARDING_KEY, reviveOnboarding, shouldOnboard } from "@/lib/onboarding";
+import { scopedKey } from "@/lib/storageScope";
 import { accountStore } from "../account/cloud";
 import { KeyForm } from "../ai/AiKeyDialog";
 import { Avatar } from "../account/AccountDock";
 
 /* --------------------------------------------- open/close from anywhere */
 
+/** "full": the whole guide (account menu); "welcome": the short one after a first sign-in. */
+type TourKind = "full" | "welcome";
 let open = false;
+let kind: TourKind = "full";
 const listeners = new Set<() => void>();
-export function openTour(): void {
+export function openTour(k: TourKind = "full"): void {
   open = true;
+  kind = k;
   for (const l of listeners) l();
 }
 function closeTour(): void {
@@ -38,7 +43,7 @@ export function useTourOpen(): boolean {
 
 function readSeen() {
   try {
-    return reviveOnboarding(window.localStorage.getItem(ONBOARDING_KEY));
+    return reviveOnboarding(window.localStorage.getItem(scopedKey(ONBOARDING_KEY)));
   } catch {
     return reviveOnboarding(null);
   }
@@ -48,7 +53,7 @@ export const tourPending = (userId: string | null | undefined): boolean => shoul
 
 function rememberSeen(userId: string) {
   try {
-    window.localStorage.setItem(ONBOARDING_KEY, JSON.stringify(markSeen(readSeen(), userId)));
+    window.localStorage.setItem(scopedKey(ONBOARDING_KEY), JSON.stringify(markSeen(readSeen(), userId)));
   } catch {
     // Storage blocked: the tour may show again next time - harmless.
   }
@@ -57,7 +62,7 @@ function rememberSeen(userId: string) {
 /* ------------------------------------------------------- illustrations */
 
 /** Messy LLM output on the left becomes clean, rendered LaTeX on the right. */
-function CleanArt() {
+export function CleanArt() {
   return (
     <div className="flex h-full items-center justify-center gap-3 px-4">
       <div className="ob-slide-l w-[42%] space-y-1.5 rounded-lg border border-border bg-bg p-2.5 font-mono text-[10.5px] leading-snug text-muted">
@@ -88,7 +93,7 @@ function CleanArt() {
 }
 
 /** Paste on the left, copy on the right. */
-function WorkflowArt() {
+export function WorkflowArt() {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 px-6">
       <div className="flex w-full max-w-sm gap-2">
@@ -119,7 +124,7 @@ function WorkflowArt() {
 }
 
 /** A paper page drawing itself, then the export buttons. */
-function PreviewArt() {
+export function PreviewArt() {
   return (
     <div className="flex h-full items-center justify-center gap-5 px-6">
       <div className="ob-zoom relative h-[150px] w-[112px] rounded-sm bg-white p-3 shadow-lg ring-1 ring-black/5">
@@ -150,7 +155,7 @@ function PreviewArt() {
 }
 
 /** Steps assembling into a derivation, with Gemini explaining them. */
-function DerivationArt() {
+export function DerivationArt() {
   const cards = [
     { x: 24, y: 112, t: "Definition", c: "text-[rgb(var(--syn-num))]" },
     { x: 196, y: 112, t: "Assumption", c: "text-[rgb(var(--syn-env))]" },
@@ -187,7 +192,7 @@ function DerivationArt() {
 }
 
 /** The dock at the bottom left, and your work following you across devices. */
-function AccountArt() {
+export function AccountArt() {
   return (
     <div className="flex h-full items-center justify-center gap-8 px-6">
       <div className="flex flex-col items-center gap-2">
@@ -224,7 +229,7 @@ function AccountArt() {
 }
 
 /** AI mode: Gemini working beside the editor. */
-function AiArt() {
+export function AiArt() {
   return (
     <div className="flex h-full items-center justify-center gap-6 px-6">
       <span className="ob-ring relative flex h-14 w-14 items-center justify-center rounded-2xl border border-border bg-surface shadow-md">
@@ -273,8 +278,18 @@ const STEPS: Array<{ art: () => React.JSX.Element; title: (name: string) => stri
   {
     art: AccountArt,
     title: () => "Yours on every device",
-    body: "Your history, analyses and preferences now sync to your account. The circle at the bottom left holds your profile, settings and history - and this tour, any time.",
+    body: "Your documents, history, analyses and preferences belong to your account: private to it, and on every device you sign in to. The circle at the bottom left holds your profile, settings and history - and this tour, any time.",
   },
+];
+
+/** After a first sign-in: the guide was on the sign-in screen, so just the personal part. */
+const WELCOME_STEPS: typeof STEPS = [
+  {
+    art: AccountArt,
+    title: (name: string) => (name ? "Welcome, " + name.split(" ")[0] + "!" : "Welcome!"),
+    body: "This is your own space: documents, history and settings you create here are private to this account and follow you to every device. Signing out removes them from this device; they wait in your account.",
+  },
+  STEPS[4],
 ];
 
 /* ---------------------------------------------------------------- tour */
@@ -292,7 +307,7 @@ export default function Onboarding() {
   useEffect(() => {
     if (acc.status !== "signed-in" || !acc.ready || !userId) return;
     if (shouldOnboard(readSeen(), userId)) {
-      const t = window.setTimeout(openTour, 600);
+      const t = window.setTimeout(() => openTour("welcome"), 600);
       return () => window.clearTimeout(t);
     }
   }, [acc.status, acc.ready, userId]);
@@ -304,7 +319,7 @@ export default function Onboarding() {
   };
   const go = (to: number) => {
     if (to < 0) return;
-    if (to >= STEPS.length) return finish();
+    if (to >= (kind === "welcome" ? WELCOME_STEPS : STEPS).length) return finish();
     setDir(to > step ? 1 : -1);
     setStep(to);
   };
@@ -322,8 +337,9 @@ export default function Onboarding() {
   });
 
   if (!isOpen) return null;
-  const S = STEPS[step];
-  const last = step === STEPS.length - 1;
+  const steps = kind === "welcome" ? WELCOME_STEPS : STEPS;
+  const S = steps[Math.min(step, steps.length - 1)];
+  const last = step >= steps.length - 1;
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm animate-fade-in" role="dialog" aria-modal="true" aria-label="Welcome tour">
       <div className="themed ob-card relative w-full max-w-[520px] overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl">
@@ -337,7 +353,7 @@ export default function Onboarding() {
           </div>
           <div className="space-y-2 px-6 pb-2 pt-5">
             <div className="text-[11px] font-semibold uppercase tracking-wider text-accent">
-              Step {step + 1} of {STEPS.length}
+              Step {step + 1} of {steps.length}
             </div>
             <h2 className="flex items-center gap-2.5 text-lg font-semibold text-text">
               {step === 0 && acc.profile && (
@@ -353,7 +369,7 @@ export default function Onboarding() {
         </div>
         <div className="flex items-center gap-2 px-6 pb-5 pt-2">
           <div className="flex gap-1.5" aria-hidden>
-            {STEPS.map((_, i) => (
+            {steps.map((_, i) => (
               <button
                 key={i}
                 type="button"

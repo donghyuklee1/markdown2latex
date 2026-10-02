@@ -767,3 +767,10 @@ html[data-resizing="y"] * {
 @keyframes ob-ring { from { opacity: 0.7; transform: scale(1); } to { opacity: 0; transform: scale(1.45); } }
 .ob-scan { animation: ob-scan 1.4s ease-in-out infinite alternate; }
 @keyframes ob-scan { from { top: 0; } to { top: calc(100% - 3rem); } }
+
+/* Welcome screen guide: each step's progress bar fills, then the next step plays. */
+.manual-fill { width: 0; animation-name: manual-fill; animation-timing-function: linear; animation-fill-mode: forwards; }
+@keyframes manual-fill { from { width: 0; } to { width: 100%; } }
+@media (prefers-reduced-motion: reduce) {
+  .manual-fill { animation: none !important; width: 0; }
+}

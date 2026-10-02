@@ -11,6 +11,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   changedKeys,
+  docChanges,
+  mergeDocs,
   pickSettings,
   profileFrom,
   reviveEntry,
@@ -21,7 +23,8 @@ import {
   type Profile,
   type Settings,
 } from "@/lib/account";
-import { historyStore } from "@/lib/documents";
+import { docsStore, historyStore, MAX_DOCS } from "@/lib/documents";
+import { scopedKey, setScope, wipeScope } from "@/lib/storageScope";
 import { aiStore } from "@/lib/persistedStore";
 import { clearDriveToken, DRIVE_SCOPE, setSignInToken } from "../drive/drive";
 
@@ -34,7 +37,8 @@ export const accountsEnabled = !!(URL_ && ANON);
 export type Provider = "google" | "github";
 
 export interface AccountState {
-  status: "disabled" | "idle" | "loading" | "signed-in";
+  /** "checking": accounts are on and we do not know yet whether someone is signed in. */
+  status: "disabled" | "checking" | "idle" | "loading" | "signed-in";
   profile: Profile | null;
   sync: { state: "idle" | "syncing" | "error" | "offline"; at: number | null; pending: number };
   /** The account's synced preferences have been pulled at least once this session. */
@@ -47,7 +51,7 @@ export interface AccountState {
 
 /* ------------------------------------------------------------ store */
 
-let state: AccountState = { status: accountsEnabled ? "idle" : "disabled", profile: null, sync: { state: "idle", at: null, pending: 0 }, ready: false, justSignedIn: false, error: null };
+let state: AccountState = { status: accountsEnabled ? "checking" : "disabled", profile: null, sync: { state: "idle", at: null, pending: 0 }, ready: false, justSignedIn: false, error: null };
 const SERVER_STATE = state;
 const listeners = new Set<() => void>();
 const emit = (patch: Partial<AccountState>) => {
@@ -89,7 +93,10 @@ let started = false;
 export function initAccount(): void {
   if (!accountsEnabled || started || typeof window === "undefined") return;
   const returning = /[?&]code=/.test(window.location.search) || /[?&]error_description=/.test(window.location.search);
-  if (!returning && !hasStoredSession()) return;
+  if (!returning && !hasStoredSession()) {
+    emit({ status: "idle" });
+    return;
+  }
   cameBack = /[?&]code=/.test(window.location.search);
   void connect();
 }
@@ -119,11 +126,14 @@ async function connect(): Promise<SupabaseClient> {
         if (event === "SIGNED_IN" && cameBack && session.provider_token && session.user.app_metadata?.provider === "google") setSignInToken(session.provider_token);
         const profile = profileFrom(session.user);
         const fresh = state.profile?.id !== profile?.id;
-        emit({ status: "signed-in", profile, error: null, justSignedIn: fresh && cameBack });
+        // This account's own storage, before anything of it is shown.
+        if (profile) setScope(profile.id, window.localStorage);
+        emit({ status: "signed-in", profile, error: null, justSignedIn: fresh && cameBack, ready: fresh ? false : state.ready });
         if (fresh) void startSync(sb);
       } else if (event === "SIGNED_OUT" || event === "INITIAL_SESSION") {
         stopSync();
         if (event === "SIGNED_OUT") clearDriveToken();
+        setScope("", window.localStorage);
         emit({ status: "idle", profile: null, sync: { state: "idle", at: null, pending: 0 }, ready: false });
       }
     }, 0);
@@ -133,7 +143,15 @@ async function connect(): Promise<SupabaseClient> {
   if (/[?&](code|error|error_description)=/.test(window.location.search)) {
     const params = new URLSearchParams(window.location.search);
     const err = params.get("error_description") ?? params.get("error");
-    window.history.replaceState(null, "", window.location.pathname + window.location.hash);
+    // A share link opened before signing in comes back with its #fragment.
+    let hash = window.location.hash;
+    try {
+      hash ||= window.sessionStorage.getItem(PENDING_HASH) ?? "";
+      window.sessionStorage.removeItem(PENDING_HASH);
+    } catch {
+      // nothing stashed
+    }
+    window.history.replaceState(null, "", window.location.pathname + hash);
     if (err) emit({ status: "idle", error: err.replace(/\+/g, " ") });
   }
   return sb;
@@ -142,9 +160,13 @@ async function connect(): Promise<SupabaseClient> {
 /** The provider used last in this browser, offered first next time. */
 export const LAST_PROVIDER_KEY = "cleanmath:last-provider:v1";
 
+const PENDING_HASH = "cleanmath:pending-hash";
+
 export async function signIn(provider: Provider): Promise<void> {
   try {
     window.localStorage.setItem(LAST_PROVIDER_KEY, provider);
+    // The provider's redirect drops the #fragment (a share link): keep it for the way back.
+    if (window.location.hash) window.sessionStorage.setItem(PENDING_HASH, window.location.hash);
   } catch {
     // Not remembered - harmless.
   }
@@ -164,10 +186,34 @@ export async function signIn(provider: Provider): Promise<void> {
   }
 }
 
-export async function signOut(): Promise<void> {
-  await flush();
+/**
+ * Sign out of this device. Everything the account changed is sent first;
+ * then the account's storage on this device is wiped, so nothing it created
+ * stays visible here. If the account cannot be reached, nothing is wiped and
+ * "pending" comes back - `force` signs out anyway (unsent changes are lost).
+ * Other devices stay signed in (scope "local").
+ */
+export async function signOut(force = false): Promise<"done" | "pending"> {
+  const uid = state.profile?.id ?? "";
+  const synced = await flushAll();
+  if (!synced && !force) return "pending";
   const sb = await client();
-  await sb.auth.signOut();
+  await sb.auth.signOut({ scope: "local" });
+  stopSync();
+  setScope("", window.localStorage);
+  wipeScope(uid, window.localStorage);
+  emit({ status: "idle", profile: null, sync: { state: "idle", at: null, pending: 0 }, ready: false });
+  return "done";
+}
+
+/** Send everything waiting: history, documents, preferences. True when all of it arrived. */
+async function flushAll(): Promise<boolean> {
+  if (state.status !== "signed-in") return true;
+  window.clearTimeout(docsTimer);
+  await flush();
+  const docs = await pushDocs();
+  await pushSettings();
+  return docs && queue.size === 0;
 }
 
 /** Removes the user's history, analyses and settings from the cloud (not from this browser). */
@@ -180,7 +226,7 @@ export async function deleteCloudData(): Promise<void> {
 
 /* ------------------------------------------------------------- sync */
 
-const queue = new UploadQueue();
+let queue = new UploadQueue();
 let stops: Array<() => void> = [];
 let flushTimer: number | undefined;
 let settingsTimer: number | undefined;
@@ -188,9 +234,10 @@ let lastSettings: Settings = {};
 let settingsAt = 0;
 let applying = false;
 
+/** Preferences are read and written in the signed-in account's own storage. */
 const read = (k: string) => {
   try {
-    return window.localStorage.getItem(k);
+    return window.localStorage.getItem(scopedKey(k));
   } catch {
     return null;
   }
@@ -234,11 +281,11 @@ function applySettings(remote: Settings) {
       const v = remote[k as keyof Settings];
       if (v === undefined) continue;
       try {
-        window.localStorage.setItem(k, v);
+        window.localStorage.setItem(scopedKey(k), v);
       } catch {
         continue;
       }
-      window.dispatchEvent(new StorageEvent("storage", { key: k, newValue: v }));
+      window.dispatchEvent(new StorageEvent("storage", { key: scopedKey(k), newValue: v }));
     }
   } finally {
     applying = false;
@@ -286,12 +333,25 @@ function onLocalSettings() {
 
 async function startSync(sb: SupabaseClient) {
   stopSync();
+  // A fresh start for this account: nothing queued from anyone else.
+  queue = new UploadQueue();
+  lastSettings = {};
+  settingsAt = 0;
+  docsSent = new Map();
   setSync({ state: "syncing" });
   emit({ ready: false });
-  // The welcome tour waits for this (another device may have seen it already),
-  // but never longer than a moment on a slow network.
-  await Promise.race([pullSettings(sb, true), new Promise((r) => setTimeout(r, 2500))]);
+  // The editor opens on this account's own documents and preferences - so it
+  // waits for them, but never longer than a few seconds on a slow network.
+  await Promise.race([Promise.all([pullSettings(sb, true), pullDocs(sb)]), new Promise((r) => setTimeout(r, 4000))]);
   emit({ ready: true });
+
+  // Documents: sent a moment after each change.
+  stops.push(
+    docsStore.subscribe(() => {
+      window.clearTimeout(docsTimer);
+      docsTimer = window.setTimeout(() => void pushDocs(), 1500);
+    }),
+  );
 
   // The Gemini key, if this account keeps one (encrypted with Supabase Vault).
   void restoreKey(sb);
@@ -335,6 +395,47 @@ function stopSync() {
   stops = [];
   window.clearTimeout(flushTimer);
   window.clearTimeout(settingsTimer);
+  window.clearTimeout(docsTimer);
+}
+
+/* ----------------------------------------------------------- documents */
+
+let docsSent = new Map<string, string>();
+let docsTimer: number | undefined;
+
+/** The account's documents, merged with whatever this device still has of them. */
+async function pullDocs(sb: SupabaseClient): Promise<void> {
+  const { data, error } = await sb.from("documents").select("id, title, text, position, updated_at").order("position");
+  if (error || !data?.length) {
+    // A new account (or offline): what is here goes up.
+    void pushDocs();
+    return;
+  }
+  const local = docsStore.get();
+  // The untouched starter tab of a fresh device is not a document of anyone's.
+  const mine = local.docs.filter((d) => d.updatedAt > 0 || d.text !== null);
+  const merged = mergeDocs(mine, data, MAX_DOCS);
+  docsStore.set({ docs: merged, active: merged.some((d) => d.id === local.active) ? local.active : merged[0].id });
+  void pushDocs();
+}
+
+/** Send the documents that changed; remove the ones closed here. */
+async function pushDocs(): Promise<boolean> {
+  if (state.status !== "signed-in") return false;
+  const { upsert, remove, next } = docChanges(docsSent, docsStore.get().docs);
+  if (!upsert.length && !remove.length) return true;
+  const sb = await client();
+  const up = upsert.length ? await sb.from("documents").upsert(upsert, { onConflict: "user_id,id" }) : { error: null };
+  const del = !up.error && remove.length ? await sb.from("documents").delete().in("id", remove) : { error: null };
+  if (up.error || del.error) {
+    setSync({ state: navigator.onLine ? "error" : "offline" });
+    window.clearTimeout(docsTimer);
+    docsTimer = window.setTimeout(() => void pushDocs(), 10_000);
+    return false;
+  }
+  docsSent = next;
+  setSync({ state: "idle", at: Date.now() });
+  return true;
 }
 
 /* --------------------------------------------------- Gemini key (Vault) */

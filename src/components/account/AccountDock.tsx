@@ -174,8 +174,15 @@ function AccountMenu({ onClose }: { onClose: () => void }) {
             icon={LogOut}
             label="Sign out"
             onClick={() => {
-              void signOut().then(() => toast("Signed out - your work stays in this browser"));
               onClose();
+              void signOut().then((r) =>
+                r === "done"
+                  ? toast("Signed out - your documents are safe in your account and removed from this device")
+                  : toast("Your account cannot be reached, so some changes are not saved there yet", "error", {
+                      label: "Sign out anyway",
+                      run: () => void signOut(true),
+                    }),
+              );
             }}
           />
           {confirmDelete ? (

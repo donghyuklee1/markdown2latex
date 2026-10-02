@@ -12,9 +12,15 @@
 <a href="package.json"><img src="https://img.shields.io/badge/Next.js-16-000?style=flat-square&logo=nextdotjs" alt="Next.js 16"></a>
 <a href="https://github.com/sponsors/donghyuklee1"><img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-Sponsor-ff751f?style=flat-square&logo=githubsponsors&logoColor=white" alt="Buy me a coffee on GitHub Sponsors"></a>
 
-<a href="#quickstart"><b>Quickstart</b></a>
-&nbsp;&middot;&nbsp;
+<h3><a href="https://markdown2latex.vercel.app">markdown2latex.vercel.app</a></h3>
+
 <a href="#what-it-fixes"><b>What it fixes</b></a>
+&nbsp;&middot;&nbsp;
+<a href="#ai-with-your-own-key"><b>AI</b></a>
+&nbsp;&middot;&nbsp;
+<a href="#your-account"><b>Accounts</b></a>
+&nbsp;&middot;&nbsp;
+<a href="#quickstart"><b>Quickstart</b></a>
 &nbsp;&middot;&nbsp;
 <a href="#keyboard-shortcuts"><b>Shortcuts</b></a>
 &nbsp;&middot;&nbsp;
@@ -40,7 +46,9 @@ in `$$`, a missing `\\` at the end of a row, prose sitting bare inside the maths
 `pdflatex` can.
 
 This tool fixes all of that in one paste, live, as you type - entirely in your
-browser.
+browser. It also turns a photo of handwritten maths into LaTeX, typesets a whole
+paper the way Overleaf would, explains a derivation step by step, and checks
+that the physics in it is dimensionally sound.
 
 <table>
 <tr>
@@ -102,12 +110,81 @@ Paste an entire `.tex` report - or pick **Examples -> Research report** - and th
 - `\newtheorem` environments, proofs, booktabs tables, figures, lists, footnotes
   and the bibliography all render;
 - hover a reference to see its target, double-click anything to jump to its
-  source, switch to two columns, or **Save as PDF**.
+  source, zoom from 50% to 200% (or Ctrl/Cmd + scroll), switch to two columns,
+  open the table of contents, or **Save as PDF**.
 
 The full report used in the screenshot is
 [`examples/06-report.md`](examples/06-report.md) - 124 lines of LaTeX with five
 custom macros, four numbered equations, a theorem, a definition, a lemma, a
 proof, a results table, a figure and a bibliography.
+
+## AI with your own key
+
+Every AI feature runs on **your own free Gemini key** from
+[Google AI Studio](https://aistudio.google.com/apikey), straight from your browser
+to Google - there is no shared key and no server of ours in between. Paste the
+key once (the **AI** button in the header, the account menu, or the welcome
+tour) and AI mode is on at once.
+
+- **Image to LaTeX / Markdown** - paste a screenshot or a photo into the editor,
+  drop one (or a PDF), or press **Image → LaTeX**. Printed or handwritten, Gemini
+  transcribes the formulas - or the whole page, text, lists and tables
+  included - into Markdown with `$...$` maths, a LaTeX body, or the formulas
+  alone. Edit the result, then insert it at the cursor, replace the document or
+  open it in a new tab.
+- **Derivation notes** - the fourth output tab explains the maths, not just its
+  symbols. *Notes* groups the steps into foundations, derivation and results -
+  simple at a glance, a full explanation on hover. *Top-down* hangs each
+  derivation from its final result; *bottom-up* climbs from definitions and
+  assumptions to the result; only direct dependencies are drawn, so a chain
+  stays a chain. *Variables* builds a booktabs notation table (finding or
+  inferring every definition); *Ideas* maps the key ideas (exportable as TikZ).
+  It also works offline, from the text alone.
+- **Background analysis** - in AI mode the derivation is analysed as you write.
+  Results are cached by the *normalized equations*, so editing prose or spacing
+  never costs a new call, and a newer edit cancels a stale run.
+- **Units for the unit checker** - the variables Gemini identifies come with
+  units, which the dimensional analysis uses (your own choices always win).
+- **Fast and resilient** - two small requests run in parallel with minimal
+  model "thinking"; every answer follows a strict JSON schema and is validated
+  before use. When a model is overloaded the app retries, then moves to another
+  model family (Flash, Flash-Lite, Pro, newest first), says which one it is
+  trying, and runs one more round by itself before giving up.
+
+Signed in, the key can be kept in your account - encrypted with Supabase Vault -
+so your other devices get it too. On Google's free tier, prompts may be used to
+improve their models.
+
+## Your account
+
+<picture>
+  <img alt="The sign-in screen: an animated guide to the app on the left, Continue with Google and Continue with GitHub on the right." src="static/readme/welcome-light.png" width="100%">
+</picture>
+
+The site opens on a sign-in screen with an animated guide to how the app works;
+sign in with **Google** or **GitHub** to start.
+
+- **Private to you** - documents, history, snippets, analyses, preferences and
+  your Gemini key belong to the account that created them. On a shared
+  computer, nobody else who signs in sees them, and **signing out removes them
+  from the device** - after they have been saved to your account. If your
+  account cannot be reached at that moment, nothing is removed until you say so.
+- **On every device** - sign in anywhere and your documents and settings are
+  there. History has a *This browser / All devices* view with search.
+- **Google Drive** - save the source, the clean LaTeX, a complete `.tex`
+  document or the rendered PNG to a "markdown2Latex" folder in your Drive, and
+  open files from Drive (left rail, or the arrow beside Copy). The app can only
+  see the files it saves or that you pick (`drive.file`).
+- **The circle at the bottom left** is your profile picture: the menu behind it
+  holds sync status, theme, font size, AI mode, history, the tour, sign out
+  and *Delete cloud data*.
+- **A short welcome** after your first sign-in, with an optional step to add
+  your Gemini key.
+
+It stays fast however many people use it: the browser talks to the database
+directly, every account's rows are separate and indexed, row-level security
+enforces that each account sees only its own, and the app never waits on the
+network - changes are saved here first and sent in small batches.
 
 ## Quickstart
 
@@ -118,8 +195,9 @@ npm install
 npm run dev        # http://localhost:3000
 ```
 
-Node 20.9+ (22 recommended). The editor opens pre-filled with a messy LLM
-answer, so you can see what it does before typing anything.
+Node 20.9+ (22 recommended). Without account settings (see `.env.example`) the
+editor opens straight away, pre-filled with a messy LLM answer, so you can see
+what it does before typing anything; with them, the sign-in screen comes first.
 
 ## What it fixes
 
@@ -178,10 +256,11 @@ Every rule is conservative by design: each one has a test where it must fire
 - **Document tabs** - several drafts at once, each autosaved. Double-click a tab
   to rename it; that name is also the **file name** every save uses (downloads,
   the PNG, the Overleaf project).
-- **Rails** - on wide screens the side margins hold a symbol palette, a snippet
-  library with **249 starters in 18 categories** (calculus to quantum, ML to
-  complex analysis - all searchable), automatic history snapshots, and an
-  equation outline with error badges.
+- **Rails** - on wide screens the side margins hold a symbol palette, Google
+  Drive, a snippet library with **249 starters in 18 categories** (calculus to
+  quantum, ML to complex analysis - all searchable), automatic history
+  snapshots, and on the right an equation outline with error badges and the
+  Workbench tools.
 - **Smart insertion** - a symbol or snippet inserted into prose is wrapped so it
   renders (`$\alpha$` inline, a snippet as its own `$$` block); inside maths it
   goes in bare. Select text first to wrap it (`x` -> `\hat{x}`).
@@ -220,35 +299,8 @@ Every rule is conservative by design: each one has a test where it must fire
   flavour (environments kept inside `$$`), the preview as a PNG image (copied or
   downloaded), the snippet, or a complete `.tex` document.
 - **Scroll sync** - the output follows the editor as you scroll.
-- **Derivation notes** - a fourth output tab that explains the maths, not just
-  its symbols. *Notes* groups the steps into foundations, derivation and
-  results - simple at a glance, a full explanation on hover. *Top-down* hangs
-  each derivation from its final result; *bottom-up* climbs from definitions
-  and assumptions to the result. Only direct dependencies are drawn (redundant
-  links are removed), so a chain stays a chain. *Variables* builds a booktabs
-  LaTeX notation table; *Ideas* maps the key ideas (exportable as TikZ).
-  Analysis is quick: two small requests run in parallel with minimal model
-  "thinking", the steps appear while the glossary is still arriving, and a
-  text analysed before (here or, signed in, on another device) opens instantly.
-  It works offline from the text alone; **Analyze with Gemini** adds roles,
-  plain-language explanations and inferred definitions, using your own free
-  key from [Google AI Studio](https://aistudio.google.com/apikey).
-- **AI mode** - paste your own Gemini key once (header **AI** switch, the
-  account menu, or the welcome tour) and AI mode is on at once: derivations are
-  analysed in the background as the mathematics changes, stale runs are
-  cancelled, and results are cached by the *normalized equations* - editing
-  prose or spacing never costs a new call. Signed in, the key can be kept in
-  your account, encrypted (Supabase Vault), for your other devices.
-- **Image to LaTeX / Markdown** - paste a screenshot or photo into the editor,
-  drop one (or a PDF), or press **Image → LaTeX**: Gemini transcribes the
-  formulas - or the whole page, text, lists and tables included - into
-  Markdown with `$...$` maths, a LaTeX body, or the formulas alone. Printed or
-  handwritten. Edit the result, then insert it at the cursor, replace the
-  document or open it in a new tab.
-- **Google Drive** - signed in, save the source, the clean LaTeX, a complete
-  `.tex` document or the rendered PNG to a "markdown2Latex" folder in your
-  Drive, and open files from Drive (left rail). Only the files the app saves
-  or you pick are visible to it (`drive.file`).
+- **Derivation notes**, **AI mode** and **Image to LaTeX** - see
+  [AI with your own key](#ai-with-your-own-key).
 
 ### Studio Workbench
 
@@ -257,8 +309,14 @@ A slide-over drawer (`Alt+B`) beside the editor, reading the current document:
 - **Shape Sandbox** - paste PyTorch / NumPy code; a built-in shape interpreter
   checks it against the paper's `A \in \mathbb{R}^{m \times n}` declarations and
   equations: `Dimensions Match [m x n]` or `Shape Mismatch` with the reason.
-- **Unit Checker** - dimensional analysis of every relation (`E = mc^2` passes,
-  `E = mc` does not), inconsistent sums and non-dimensionless function arguments.
+- **Unit Checker** - dimensional analysis of the physics in your document
+  (`E = mc^2` passes, `E = mc` does not), inconsistent sums and
+  non-dimensionless function arguments. It first tells physics from abstract
+  mathematics - a loss `L(\theta)`, an index sum, `a = b + c` are reported as
+  *Dimensionless · skipped*, never a false mismatch - using known laws,
+  physical constants, explicit units and the surrounding prose. Generic letters
+  get a physical meaning only when the text, a law or you assign one, and each
+  equation can be switched between *physics* and *abstract* by hand.
 - **Sketch -> TikZ** - draw boxes, circles, diamonds and arrows; strokes snap to
   clean shapes and become compilable TikZ with a matching live preview.
 
@@ -332,7 +390,7 @@ Full write-up: [`docs/ENGINE.md`](docs/ENGINE.md).
 ```
 src/
 ├── app/
-│   ├── page.tsx              The single page
+│   ├── page.tsx              The single page, behind the sign-in gate
 │   ├── layout.tsx            Metadata, theme bootstrap
 │   └── manifest.ts, robots.ts, sitemap.ts, opengraph-image.tsx
 ├── components/
@@ -345,7 +403,12 @@ src/
 │   ├── Splitter.tsx          Pointer + keyboard resize handle
 │   ├── ResearchLab.tsx       The Tools view; lab/ holds its kit, registry and panels
 │   ├── rails/                Doc tabs, side rails, palette, snippets, history, outline
-│   ├── studio/               Workbench drawer, formula flow/graph, sandbox, units, sketch
+│   ├── studio/               Workbench drawer, shape sandbox, unit checker, sketch
+│   ├── derivation/           Derivation notes (five views) and the Gemini client
+│   ├── ai/                   AI mode: key dialog, header switch, orchestrator, Image to LaTeX
+│   ├── account/              Sign-in gate, login, account circle and menu, cloud sync
+│   ├── drive/                Google Drive panel and client
+│   ├── onboarding/           The welcome tour
 │   ├── ShortcutsDialog.tsx   The `?` panel
 │   ├── Header.tsx, ThemeToggle.tsx, PalettePicker.tsx, MathColorPicker.tsx
 │   └── Toast.tsx, Katex.tsx, ui.tsx
@@ -362,10 +425,15 @@ src/
     ├── insertion.ts          Snippet/symbol insertion that renders
     ├── starters.ts           The 249 starter snippets
     ├── documents.ts          Tabs, history, snippets, file names
+    ├── derivation.ts         Derivation model, prompts, JSON schemas, cache keys
+    ├── ocr.ts                Image to LaTeX: request and answer validation
+    ├── account.ts            Sync logic: settings, queue, document merge
+    ├── storageScope.ts       One storage space per account on a shared device
     ├── lab/ studio/          Pure logic for every Tool and Studio feature
     ├── persistedStore.ts     Draft and layout, as external stores
     ├── optionsStore.ts, theme.ts, site.ts
     └── highlight.ts, katexOptions.ts, defaultText.ts
+supabase/migrations/          Accounts: row-level security, caps, Vault key, documents
 ```
 
 </details>
@@ -374,7 +442,7 @@ src/
 
 ```bash
 npm run verify     # lint + typecheck + tests + production build - run before pushing
-npm test           # 793 checks in 28 spec files: engine rules (each with a
+npm test           # 818 checks in 29 spec files: engine rules (each with a
                    # must-not-fire test), KaTeX rendering of every example and
                    # starter, every Tool and Studio feature, idempotence
 npm run examples   # regenerate examples/ (CI fails if it is stale)
@@ -383,13 +451,13 @@ npm run logos      # rebuild the logo PNGs from static/logo-source.png
 
 ## Privacy
 
-Everything runs in your browser, with no analytics. Your text is parsed in your
-tab and stored in your browser's `localStorage`. Accounts are optional: if you
-sign in with Google or GitHub (**Sign in** at the top right; afterwards your
-profile picture sits in the circle at the bottom left), your history,
-analyses and preferences also sync to your account so they follow you to other
-devices - never your Gemini key - and "Delete cloud data" removes them.
-Share links carry the text in the URL fragment, which is never sent in a request.
+Everything runs in your browser, with no analytics and no server code of ours.
+Your text is parsed in your tab. On this device it is kept in a storage space
+that belongs to your account alone, and signing out removes it; in the cloud it
+lives in rows that only your account can read (row-level security), and
+**Delete cloud data** removes them. Sign-in sends us only your name, email and
+profile picture. Share links carry the text in the URL fragment, which is never
+sent in a request.
 
 A few things are deliberate exceptions, and only happen when you click them:
 **Open in Overleaf** sends the document to Overleaf (that is the point of it);
@@ -408,12 +476,10 @@ for a deploy on every push). It needs no secrets: AI features use each
 visitor's own Gemini key. Optional public settings for accounts and Google
 Drive are listed in `.env.example`.
 
-The first sign-in opens a short animated tour of the app (replay it any time
-from the account menu). Sign-in with Google and GitHub, and cloud history, use Supabase: a few SQL files
-and two public env vars, set up in about ten minutes - see
-[docs/ACCOUNTS.md](docs/ACCOUNTS.md), which also explains how it stays fast as
-users grow (browser-direct, per-user indexed rows, row-level security, local-first
-queued sync).
+Accounts (Google and GitHub sign-in, synced documents and history) use
+Supabase: run the SQL files in `supabase/migrations/` in order and set two
+public env vars - about ten minutes, see [docs/ACCOUNTS.md](docs/ACCOUNTS.md),
+which also covers Google Drive and how it scales.
 
 ## Roadmap
 

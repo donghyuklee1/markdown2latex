@@ -16,7 +16,7 @@
  * This file holds the parts that need no network: hashing, which settings
  * travel, row shapes and the upload queue. Pure, ASCII-only.
  */
-import type { Snapshot } from "./documents";
+import type { Doc, Snapshot } from "./documents";
 
 /** localStorage keys that make up a user's preferences (never the Gemini key). */
 export const SYNC_KEYS = [
@@ -214,4 +214,72 @@ export function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return "?";
   return ((parts[0][0] ?? "") + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
+}
+
+/* ------------------------------------------------------------ documents */
+
+/** A document as the cloud keeps it (one row per tab). */
+export interface DocRow {
+  id: string;
+  title: string;
+  /** null: the untouched sample text. */
+  text: string | null;
+  position: number;
+  updated_at: string;
+}
+
+export const DOC_TEXT_MAX = 500_000;
+
+export function docRow(d: Doc, position: number): DocRow {
+  return {
+    id: d.id.slice(0, 40),
+    title: d.title.slice(0, 200),
+    text: d.text === null ? null : d.text.slice(0, DOC_TEXT_MAX),
+    position,
+    updated_at: new Date(d.updatedAt || 0).toISOString(),
+  };
+}
+
+export function reviveDocRow(raw: unknown): Doc & { position: number } | null {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  if (typeof r.id !== "string") return null;
+  return {
+    id: r.id,
+    title: typeof r.title === "string" ? r.title : "",
+    text: typeof r.text === "string" ? r.text : null,
+    updatedAt: Date.parse(String(r.updated_at)) || 0,
+    position: typeof r.position === "number" ? r.position : 0,
+  };
+}
+
+/**
+ * This device's tabs and the account's, combined: per document the newer
+ * edit wins; the account's order first, documents only on this device after.
+ */
+export function mergeDocs(local: ReadonlyArray<Doc>, remote: ReadonlyArray<unknown>, max: number): Doc[] {
+  const rows = remote.map(reviveDocRow).filter((d): d is Doc & { position: number } => !!d).sort((a, b) => a.position - b.position);
+  const byId = new Map(local.map((d) => [d.id, d]));
+  const out: Doc[] = [];
+  for (const r of rows) {
+    const mine = byId.get(r.id);
+    out.push(mine && mine.updatedAt > r.updatedAt ? mine : { id: r.id, title: r.title, text: r.text, updatedAt: r.updatedAt });
+    byId.delete(r.id);
+  }
+  for (const d of local) if (byId.has(d.id)) out.push(d);
+  return out.slice(0, max);
+}
+
+const docSig = (d: Doc, position: number) => position + ":" + d.updatedAt + ":" + d.title + ":" + hashText(d.text ?? "\u0000sample");
+
+/** What to send: changed or new documents, and the ids that were closed. */
+export function docChanges(sent: ReadonlyMap<string, string>, docs: ReadonlyArray<Doc>): { upsert: DocRow[]; remove: string[]; next: Map<string, string> } {
+  const next = new Map<string, string>();
+  const upsert: DocRow[] = [];
+  docs.forEach((d, i) => {
+    const sig = docSig(d, i);
+    next.set(d.id, sig);
+    if (sent.get(d.id) !== sig) upsert.push(docRow(d, i));
+  });
+  const remove = [...sent.keys()].filter((id) => !next.has(id));
+  return { upsert, remove, next };
 }

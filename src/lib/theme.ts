@@ -9,6 +9,8 @@
  * component re-rendering for colour reasons.
  */
 
+import { onScopeChange, SCOPE_KEY, scopedKey } from "./storageScope";
+
 export type ThemeName = "light" | "dark";
 
 export const THEME_STORAGE_KEY = "cleanmath:theme:v1";
@@ -67,9 +69,17 @@ const notify = () => {
   for (const l of listeners) l();
 };
 
+// Each account keeps its own theme and palette.
+onScopeChange(() => {
+  theme = null;
+  palette = null;
+  if (typeof document !== "undefined") applyToDom(getThemeSnapshot(), getPaletteSnapshot()[getThemeSnapshot()] ?? {});
+  notify();
+});
+
 function readStoredTheme(): ThemeName {
   try {
-    const raw = window.localStorage.getItem(THEME_STORAGE_KEY);
+    const raw = window.localStorage.getItem(scopedKey(THEME_STORAGE_KEY));
     if (raw === "light" || raw === "dark") return raw;
   } catch {
     /* fall through to the media query */
@@ -79,7 +89,7 @@ function readStoredTheme(): ThemeName {
 
 function readStoredPalette(): StoredPalette {
   try {
-    const raw = window.localStorage.getItem(PALETTE_STORAGE_KEY);
+    const raw = window.localStorage.getItem(scopedKey(PALETTE_STORAGE_KEY));
     return raw ? (JSON.parse(raw) as StoredPalette) : {};
   } catch {
     return {};
@@ -130,7 +140,7 @@ export function getPaletteServerSnapshot(): StoredPalette {
 export function subscribeToTheme(listener: () => void): () => void {
   listeners.add(listener);
   const onStorage = (event: StorageEvent) => {
-    if (event.key !== null && event.key !== THEME_STORAGE_KEY && event.key !== PALETTE_STORAGE_KEY) return;
+    if (event.key !== null && event.key !== scopedKey(THEME_STORAGE_KEY) && event.key !== scopedKey(PALETTE_STORAGE_KEY)) return;
     theme = null;
     palette = null;
     applyToDom(getThemeSnapshot(), getPaletteSnapshot()[getThemeSnapshot()] ?? {});
@@ -147,8 +157,8 @@ export function subscribeToTheme(listener: () => void): () => void {
 
 function persist(): void {
   try {
-    if (theme) window.localStorage.setItem(THEME_STORAGE_KEY, theme);
-    if (palette) window.localStorage.setItem(PALETTE_STORAGE_KEY, JSON.stringify(palette));
+    if (theme) window.localStorage.setItem(scopedKey(THEME_STORAGE_KEY), theme);
+    if (palette) window.localStorage.setItem(scopedKey(PALETTE_STORAGE_KEY), JSON.stringify(palette));
   } catch {
     // The app works fine without persistence.
   }
@@ -216,10 +226,12 @@ export async function pickColorFromScreen(): Promise<string | null> {
  * document, so it must stay dependency-free.
  */
 export const THEME_BOOTSTRAP = `(function(){try{
-var t=localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)});
+var s=localStorage.getItem(${JSON.stringify(SCOPE_KEY)});
+var K=function(k){return s?k.replace("cleanmath:","cleanmath:u:"+s+":"):k;};
+var t=localStorage.getItem(K(${JSON.stringify(THEME_STORAGE_KEY)}));
 if(t!=="light"&&t!=="dark"){t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";}
 document.documentElement.dataset.theme=t;
-var p=JSON.parse(localStorage.getItem(${JSON.stringify(PALETTE_STORAGE_KEY)})||"{}")[t]||{};
+var p=JSON.parse(localStorage.getItem(K(${JSON.stringify(PALETTE_STORAGE_KEY)}))||"{}")[t]||{};
 for(var k in p){var m=/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(p[k]).trim());if(!m)continue;
 var b=m[1];if(b.length===3){b=b[0]+b[0]+b[1]+b[1]+b[2]+b[2];}var n=parseInt(b,16);
 document.documentElement.style.setProperty("--"+k,((n>>16)&255)+" "+((n>>8)&255)+" "+(n&255));}

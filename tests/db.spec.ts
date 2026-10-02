@@ -37,6 +37,7 @@ async function main() {
     create view vault.decrypted_secrets as select id, name, secret as decrypted_secret from vault.secrets;
   `);
   await db.exec(readFileSync(join(process.cwd(), "supabase", "migrations", "20261004000000_gemini_key_vault.sql"), "utf8"));
+  await db.exec(readFileSync(join(process.cwd(), "supabase", "migrations", "20261005000000_documents.sql"), "utf8"));
   await db.exec(`grant select, insert, update, delete on all tables in schema public to authenticated;`);
   const A = "00000000-0000-0000-0000-00000000000a", B = "00000000-0000-0000-0000-00000000000b";
   const as = async (uid: string, sql: string, params?: unknown[]) => {
@@ -100,6 +101,18 @@ async function main() {
   await as(B, "select set_gemini_key('AIza-b')");
   await as(B, "select delete_my_data()");
   ok("delete_my_data removes the key too", (await key(B)) === null);
+
+  // Documents: private per account, and part of "delete my data".
+  await db.exec("reset role;");
+  await db.exec(`grant select, insert, update, delete on public.documents to authenticated;`);
+  await as(A, "insert into documents (id, title, text, position) values ('d1', 'A notes', 'alpha', 0)");
+  await as(B, "insert into documents (id, title, text, position) values ('d1', 'B notes', 'beta', 0)");
+  ok("documents: each account sees only its own", ((await as(A, "select string_agg(title, ',') t from documents")).rows[0] as Row).t === "A notes");
+  ok("documents: the same tab id in two accounts does not collide", ((await as(B, "select text from documents where id = 'd1'")).rows[0] as Row).text === "beta");
+  await as(A, "insert into documents (id, title, text) select 'x' || g, 't', 'x' from generate_series(1, 120) g");
+  ok("documents: capped at 100 per account", ((await as(A, "select count(*)::int n from documents")).rows[0] as Row).n === 100);
+  await as(A, "select delete_my_data()");
+  ok("documents: delete_my_data removes them", ((await as(A, "select count(*)::int n from documents")).rows[0] as Row).n === 0 && ((await as(B, "select count(*)::int n from documents")).rows[0] as Row).n === 1);
 
   await db.exec("reset role; set role anon;");
   let anonCalled = true;
