@@ -1,5 +1,5 @@
 import { check, finish } from "./harness";
-import { geminiRequest, rankModels } from "../src/lib/derivation";
+import { fallbackModels, geminiRequest, rankModels } from "../src/lib/derivation";
 
 const req = (body: unknown, headers: Record<string, string> = {}) =>
   new Request("https://site.test/api/analyze", { method: "POST", headers: { host: "site.test", "content-type": "application/json", ...headers }, body: JSON.stringify(body) });
@@ -27,13 +27,38 @@ async function main() {
   const ok = await route.POST(req({ input: "$$E = mc^2$$" }, { origin: "https://site.test", "x-forwarded-for": "1.2.3.4" }));
   const out = (await ok.json()) as { text?: string; model?: string };
   check("same-origin POST answers with Gemini's JSON text", ok.status + " " + out.model + " " + (out.text?.startsWith('{"title"') ? "json" : "?"), "200 gemini-test-flash json");
-  check("server key goes to Google in a header", sent[0].key + " " + sent[0].url.includes("key="), "server-test-key false");
-  check("the prompt is built server-side from the document", sent[0].body === JSON.stringify(geminiRequest("$$E = mc^2$$")) ? "same" : "differs", "same");
+  const gen = sent.find((x) => x.url.includes(":generateContent"))!;
+  check("server key goes to Google in a header", gen.key + " " + gen.url.includes("key="), "server-test-key false");
+  check("the prompt is built server-side from the document", gen.body === JSON.stringify(geminiRequest("$$E = mc^2$$")) ? "same" : "differs", "same");
 
   const codes: number[] = [];
   for (let i = 0; i < 6; i++) codes.push((await route.POST(req({ input: "$$a=b$$" }, { "x-forwarded-for": "1.2.3.4" }))).status);
   check("per-visitor limit: 6 per window, then 429", codes.join(","), "200,200,200,200,200,429");
   check("another visitor is unaffected", String((await route.POST(req({ input: "$$a=b$$" }, { "x-forwarded-for": "5.6.7.8" }))).status), "200");
+
+  // A model under "high demand": one retry, then the next model answers.
+  const tried: string[] = [];
+  globalThis.fetch = (async (url: string) => {
+    const u = String(url);
+    if (u.includes("/models?")) return Response.json({ models: [{ name: "models/gemini-test-flash", supportedGenerationMethods: ["generateContent"] }, { name: "models/gemini-stable-flash", supportedGenerationMethods: ["generateContent"] }] });
+    const m = /models\/([^:]+):/.exec(u)![1];
+    tried.push(m);
+    if (m === "gemini-test-flash") return Response.json({ error: { message: "high demand" } }, { status: 503 });
+    return Response.json({ candidates: [{ content: { parts: [{ text: "{}" }] } }] });
+  }) as typeof fetch;
+  const fb = await route.POST(req({ input: "$$a=b$$" }, { "x-forwarded-for": "9.9.9.9" }));
+  check("503: retried once, then a fallback model answers", fb.status + " " + tried.join(",") + " " + ((await fb.json()) as { model: string }).model, "200 gemini-test-flash,gemini-test-flash,gemini-stable-flash gemini-stable-flash");
+
+  globalThis.fetch = (async (url: string) =>
+    String(url).includes("/models?") ? Response.json({ models: [] }) : Response.json({ error: {} }, { status: 503 })) as typeof fetch;
+  const busy = await route.POST(req({ input: "$$a=b$$" }, { "x-forwarded-for": "9.9.9.8" }));
+  check("every model busy: a clear 503, not a raw Gemini error", busy.status + " " + ((await busy.json()) as { error: string }).error, "503 Gemini is overloaded right now - try again in a minute.");
+
+  check(
+    "fallback order: chosen first, then stable before preview, Flash before Pro",
+    fallbackModels("gemini-3.8-flash", [{ id: "gemini-3.8-flash", label: "" }, { id: "gemini-3.5-pro", label: "" }, { id: "gemini-3.5-flash-preview", label: "" }, { id: "gemini-3.5-flash", label: "" }]).join(" "),
+    "gemini-3.8-flash gemini-3.5-flash gemini-3.5-pro",
+  );
 
   check(
     "model ranking: newest Flash first, non-text models skipped",

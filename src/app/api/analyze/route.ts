@@ -7,7 +7,7 @@
  * and limits each visitor (per IP, per server instance - best effort) plus a
  * daily total that protects the free quota. Nothing is stored or logged.
  */
-import { geminiAnswer, geminiRequest, rankModels } from "@/lib/derivation";
+import { fallbackModels, geminiAnswer, geminiRequest, rankModels, retryable, type ModelInfo } from "@/lib/derivation";
 
 export const maxDuration = 60;
 
@@ -18,7 +18,7 @@ const PER_DAY = Number(process.env.GEMINI_DAILY_LIMIT) || 400;
 
 const visitors = new Map<string, number[]>();
 let day = { date: "", count: 0 };
-let cachedModel: string | null = null;
+let ranked: ModelInfo[] | null = null;
 
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { "cache-control": "no-store" } });
 
@@ -36,13 +36,15 @@ function allow(ip: string): string | null {
   return null;
 }
 
-async function model(key: string): Promise<string> {
-  if (process.env.GEMINI_MODEL) return process.env.GEMINI_MODEL;
-  if (cachedModel) return cachedModel;
-  const res = await fetch(API + "/models?pageSize=200", { headers: { "x-goog-api-key": key } });
-  cachedModel = rankModels(await res.json().catch(() => ({})))[0]?.id ?? "gemini-flash-latest";
-  return cachedModel;
+async function models(key: string): Promise<string[]> {
+  if (!ranked?.length) {
+    const res = await fetch(API + "/models?pageSize=200", { headers: { "x-goog-api-key": key } }).catch(() => null);
+    ranked = res?.ok ? rankModels(await res.json().catch(() => ({}))) : [];
+  }
+  return fallbackModels(process.env.GEMINI_MODEL || ranked[0]?.id || "gemini-flash-latest", ranked);
 }
+
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export function GET() {
   return json({ configured: !!process.env.GEMINI_API_KEY });
@@ -65,23 +67,37 @@ export async function POST(request: Request) {
   const denied = allow(ip);
   if (denied) return json({ error: denied }, 429);
 
-  const m = await model(key);
-  let res: Response;
-  try {
-    res = await fetch(API + "/models/" + encodeURIComponent(m) + ":generateContent", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify(geminiRequest(input)),
-    });
-  } catch {
-    return json({ error: "Could not reach Gemini." }, 502);
+  // A busy model (503 "high demand", 429, 500) gets one retry after a pause,
+  // then the next model in line; a retired one (404) is skipped at once.
+  const payload = JSON.stringify(geminiRequest(input));
+  let lastStatus = 0;
+  for (const m of await models(key)) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      let res: Response;
+      try {
+        res = await fetch(API + "/models/" + encodeURIComponent(m) + ":generateContent", {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-goog-api-key": key },
+          body: payload,
+        });
+      } catch {
+        return json({ error: "Could not reach Gemini." }, 502);
+      }
+      const answer = await res.json().catch(() => ({}));
+      if (res.ok) {
+        const out = geminiAnswer(answer);
+        return "error" in out ? json({ error: out.error }, 502) : json({ text: out.text, model: m });
+      }
+      lastStatus = res.status;
+      if (res.status === 404) {
+        ranked = null;
+        break;
+      }
+      if (!retryable(res.status)) return json({ error: "Gemini error " + res.status + "." }, 502);
+      if (attempt === 0) await wait(1200 + Math.random() * 800);
+    }
   }
-  const answer = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    if (res.status === 429) return json({ error: "The site's Gemini quota is busy - try again in a minute, or add your own free key (key icon)." }, 429);
-    if (res.status === 404) cachedModel = null;
-    return json({ error: "Gemini error " + res.status + "." }, 502);
-  }
-  const out = geminiAnswer(answer);
-  return "error" in out ? json({ error: out.error }, 502) : json({ text: out.text, model: m });
+  return lastStatus === 429
+    ? json({ error: "The site's Gemini quota is busy - try again in a minute, or add your own free key (key icon)." }, 429)
+    : json({ error: "Gemini is overloaded right now - try again in a minute." }, 503);
 }

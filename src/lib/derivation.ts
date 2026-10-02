@@ -551,3 +551,20 @@ export function rankModels(body: unknown): ModelInfo[] {
   const rank = (n: string) => (/flash/.test(n) && !/lite/.test(n) ? 0 : /flash/.test(n) ? 1 : 2) + (/(preview|exp)/.test(n) ? 0.5 : 0);
   return usable.sort((a, b) => version(b.name) - version(a.name) || rank(a.name) - rank(b.name)).map((m) => ({ id: m.name.replace(/^models\//, ""), label: m.displayName ?? m.name }));
 }
+
+/** Busy or rate-limited: worth retrying, or trying another model. */
+export const retryable = (status: number) => status === 429 || status === 500 || status === 503 || status === 504;
+
+/**
+ * Which models to try, in order: the chosen one, then up to `extra` others
+ * from the ranked list - stable releases before previews, Flash before Pro -
+ * so a model under "high demand" falls back to a quieter one.
+ */
+export function fallbackModels(chosen: string, ranked: ReadonlyArray<ModelInfo>, extra = 2): string[] {
+  const stable = (id: string) => !/(preview|exp|latest)/.test(id);
+  const others = ranked
+    .map((m) => m.id)
+    .filter((id) => id !== chosen)
+    .sort((a, b) => Number(stable(b)) - Number(stable(a)) || Number(/flash/.test(b)) - Number(/flash/.test(a)));
+  return [chosen, ...others.slice(0, extra)].filter(Boolean);
+}

@@ -572,7 +572,9 @@ export default function DerivationView({ input, selectLines, insert }: StudioCon
           model = (await listModels(ai.apiKey))[0]?.id ?? "";
           aiStore.set({ ...ai, model });
         }
-        result = await analyzeDerivation(source, offline, ai.apiKey, model);
+        const r = await analyzeDerivation(source, offline, ai.apiKey, model);
+        result = r.result;
+        if (r.model !== model) toast(model + " was busy - answered by " + r.model);
       }
       aiCache.set(key, result);
       bump((n) => n + 1);

@@ -9,13 +9,22 @@
  *
  * Either way the answer is validated by `mergeAi` against the offline model.
  */
-import { geminiAnswer, geminiRequest, mergeAi, rankModels, type Derivation, type ModelInfo } from "@/lib/derivation";
+import { fallbackModels, geminiAnswer, geminiRequest, mergeAi, rankModels, retryable, type Derivation, type ModelInfo } from "@/lib/derivation";
 
 export type { ModelInfo };
 
 const API = "https://generativelanguage.googleapis.com/v1beta";
 
-export class AiError extends Error {}
+export class AiError extends Error {
+  constructor(
+    message: string,
+    readonly status = 0,
+  ) {
+    super(message);
+  }
+}
+
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function call(path: string, key: string, init?: RequestInit): Promise<unknown> {
   let res: Response;
@@ -27,10 +36,11 @@ async function call(path: string, key: string, init?: RequestInit): Promise<unkn
   const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
   if (!res.ok) {
     const msg = body.error?.message ?? res.statusText;
-    if (res.status === 400 && /API key/i.test(msg)) throw new AiError("That API key was rejected. Create one at aistudio.google.com/apikey.");
-    if (res.status === 403) throw new AiError("This key cannot use the Gemini API: " + msg);
-    if (res.status === 429) throw new AiError("Free-tier rate limit reached - wait a minute and try again.");
-    throw new AiError("Gemini error " + res.status + ": " + msg);
+    if (res.status === 400 && /API key/i.test(msg)) throw new AiError("That API key was rejected. Create one at aistudio.google.com/apikey.", 400);
+    if (res.status === 403) throw new AiError("This key cannot use the Gemini API: " + msg, 403);
+    if (res.status === 429) throw new AiError("Free-tier rate limit reached - wait a minute and try again.", 429);
+    if (res.status === 503 || res.status === 500 || res.status === 504) throw new AiError("Gemini is overloaded right now - try again in a minute.", res.status);
+    throw new AiError("Gemini error " + res.status + ": " + msg, res.status);
   }
   return body;
 }
@@ -47,12 +57,31 @@ function parse(text: string, base: Derivation): Derivation {
   }
 }
 
-/** With the user's own key, straight from the browser to Google. */
-export async function analyzeDerivation(input: string, base: Derivation, key: string, model: string): Promise<Derivation> {
-  const body = await call("/models/" + encodeURIComponent(model) + ":generateContent", key, { method: "POST", body: JSON.stringify(geminiRequest(input)) });
-  const answer = geminiAnswer(body);
-  if ("error" in answer) throw new AiError(answer.error);
-  return parse(answer.text, base);
+/**
+ * With the user's own key, straight from the browser to Google. A busy model
+ * (503 "high demand", 429, 500) is retried once after a pause, then the next
+ * model in line is tried; the result says which model answered.
+ */
+export async function analyzeDerivation(input: string, base: Derivation, key: string, model: string): Promise<{ result: Derivation; model: string }> {
+  const body = JSON.stringify(geminiRequest(input));
+  let models = [model];
+  let last: AiError | null = null;
+  for (let i = 0; i < models.length; i++) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const answer = geminiAnswer(await call("/models/" + encodeURIComponent(models[i]) + ":generateContent", key, { method: "POST", body }));
+        if ("error" in answer) throw new AiError(answer.error);
+        return { result: parse(answer.text, base), model: models[i] };
+      } catch (e) {
+        if (!(e instanceof AiError) || !(retryable(e.status) || e.status === 404)) throw e;
+        last = e;
+        if (e.status === 404) break; // retired model: go straight to the next
+        if (attempt === 0) await wait(1500 + Math.random() * 1000);
+      }
+    }
+    if (i === 0) models = fallbackModels(model, await listModels(key).catch(() => []));
+  }
+  throw last ?? new AiError("Analysis failed.");
 }
 
 /** Whether this deployment has a site key (false on static hosts and locally without one). */
