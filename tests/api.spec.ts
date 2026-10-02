@@ -1,0 +1,51 @@
+import { check, finish } from "./harness";
+import { geminiRequest, rankModels } from "../src/lib/derivation";
+
+const req = (body: unknown, headers: Record<string, string> = {}) =>
+  new Request("https://site.test/api/analyze", { method: "POST", headers: { host: "site.test", "content-type": "application/json", ...headers }, body: JSON.stringify(body) });
+
+async function main() {
+  delete process.env.GEMINI_API_KEY;
+  const route = await import("../src/app/api/analyze/route");
+  check("GET: no site key reported", JSON.stringify(await route.GET().json()), '{"configured":false}');
+  check("POST without a site key: 501, nothing sent", String((await route.POST(req({ input: "$$a=b$$" }))).status), "501");
+
+  process.env.GEMINI_API_KEY = "server-test-key";
+  process.env.GEMINI_MODEL = "gemini-test-flash";
+  const sent: Array<{ url: string; body: string; key: string }> = [];
+  globalThis.fetch = (async (url: string, init?: RequestInit) => {
+    sent.push({ url: String(url), body: String(init?.body ?? ""), key: new Headers(init?.headers).get("x-goog-api-key") ?? "" });
+    return Response.json({ candidates: [{ content: { parts: [{ text: '{"title":"t","steps":[],"variables":[],"ideas":[],"ideaLinks":[]}' }] } }] });
+  }) as typeof fetch;
+
+  check("GET: site key reported, never the key itself", JSON.stringify(await route.GET().json()), '{"configured":true}');
+  check("cross-origin POST refused", String((await route.POST(req({ input: "$$a=b$$" }, { origin: "https://evil.test" }))).status), "403");
+  check("empty input refused", String((await route.POST(req({ input: "  " }))).status), "400");
+  check("oversized input refused", String((await route.POST(req({ input: "x".repeat(120_001) }))).status), "413");
+  check("arbitrary prompts are not forwarded", String(sent.length), "0");
+
+  const ok = await route.POST(req({ input: "$$E = mc^2$$" }, { origin: "https://site.test", "x-forwarded-for": "1.2.3.4" }));
+  const out = (await ok.json()) as { text?: string; model?: string };
+  check("same-origin POST answers with Gemini's JSON text", ok.status + " " + out.model + " " + (out.text?.startsWith('{"title"') ? "json" : "?"), "200 gemini-test-flash json");
+  check("server key goes to Google in a header", sent[0].key + " " + sent[0].url.includes("key="), "server-test-key false");
+  check("the prompt is built server-side from the document", sent[0].body === JSON.stringify(geminiRequest("$$E = mc^2$$")) ? "same" : "differs", "same");
+
+  const codes: number[] = [];
+  for (let i = 0; i < 6; i++) codes.push((await route.POST(req({ input: "$$a=b$$" }, { "x-forwarded-for": "1.2.3.4" }))).status);
+  check("per-visitor limit: 6 per window, then 429", codes.join(","), "200,200,200,200,200,429");
+  check("another visitor is unaffected", String((await route.POST(req({ input: "$$a=b$$" }, { "x-forwarded-for": "5.6.7.8" }))).status), "200");
+
+  check(
+    "model ranking: newest Flash first, non-text models skipped",
+    rankModels({ models: [
+      { name: "models/gemini-2.0-flash", supportedGenerationMethods: ["generateContent"] },
+      { name: "models/gemini-2.5-pro", supportedGenerationMethods: ["generateContent"] },
+      { name: "models/gemini-2.5-flash", supportedGenerationMethods: ["generateContent"] },
+      { name: "models/gemini-2.5-flash-image", supportedGenerationMethods: ["generateContent"] },
+      { name: "models/text-embedding-004", supportedGenerationMethods: ["embedContent"] },
+    ] }).map((m) => m.id).join(" "),
+    "gemini-2.5-flash gemini-2.5-pro gemini-2.0-flash",
+  );
+  finish("api");
+}
+void main();

@@ -4,3 +4,8 @@ out
 next-env.d.ts
 *.tsbuildinfo
 .DS_Store
+
+# local secrets (see .env.example)
+.env
+.env*.local
+.vercel

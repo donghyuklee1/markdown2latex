@@ -1,17 +1,19 @@
 /**
- * gemini.ts - the browser talks to Google's Gemini API directly, with the
- * user's own free API key (Google AI Studio). No server of ours in between:
- * the key lives in this browser's storage and travels only to Google, in a
- * header (never in a URL). Called only when the user clicks Analyze.
+ * gemini.ts - two ways to reach Gemini, both only when the user clicks Analyze:
+ *
+ *  - with the user's own key: the browser calls Google directly; the key lives
+ *    in this browser's storage and travels only to Google, in a header;
+ *  - without one: the site's route (/api/analyze) calls Gemini with the site's
+ *    key. It accepts only the document and builds the prompt itself, so it is
+ *    not a general-purpose proxy, and it rate-limits each visitor.
+ *
+ * Either way the answer is validated by `mergeAi` against the offline model.
  */
-import { buildPrompt, mergeAi, RESPONSE_SCHEMA, type Derivation } from "@/lib/derivation";
+import { geminiAnswer, geminiRequest, mergeAi, rankModels, type Derivation, type ModelInfo } from "@/lib/derivation";
+
+export type { ModelInfo };
 
 const API = "https://generativelanguage.googleapis.com/v1beta";
-
-export interface ModelInfo {
-  id: string;
-  label: string;
-}
 
 export class AiError extends Error {}
 
@@ -22,7 +24,7 @@ async function call(path: string, key: string, init?: RequestInit): Promise<unkn
   } catch {
     throw new AiError("Could not reach Google - check your connection.");
   }
-  const body = (await res.json().catch(() => ({}))) as { error?: { message?: string; status?: string } };
+  const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
   if (!res.ok) {
     const msg = body.error?.message ?? res.statusText;
     if (res.status === 400 && /API key/i.test(msg)) throw new AiError("That API key was rejected. Create one at aistudio.google.com/apikey.");
@@ -33,53 +35,45 @@ async function call(path: string, key: string, init?: RequestInit): Promise<unkn
   return body;
 }
 
-/** Newest first, Flash models before Pro (they are the free tier's sweet spot). */
 export async function listModels(key: string): Promise<ModelInfo[]> {
-  const body = (await call("/models?pageSize=200", key)) as {
-    models?: Array<{ name: string; displayName?: string; supportedGenerationMethods?: string[] }>;
-  };
-  const usable = (body.models ?? []).filter(
-    (m) => m.supportedGenerationMethods?.includes("generateContent") && /gemini/i.test(m.name) && !/(image|tts|audio|live|embedding|vision|aqa|learnlm)/i.test(m.name),
-  );
-  const version = (n: string) => Number(/gemini-(\d+(?:\.\d+)?)/.exec(n)?.[1] ?? 0);
-  const rank = (n: string) => (/flash/.test(n) && !/lite/.test(n) ? 0 : /flash/.test(n) ? 1 : 2) + (/(preview|exp)/.test(n) ? 0.5 : 0);
-  return usable
-    .sort((a, b) => version(b.name) - version(a.name) || rank(a.name) - rank(b.name))
-    .map((m) => ({ id: m.name.replace(/^models\//, ""), label: m.displayName ?? m.name }));
+  return rankModels(await call("/models?pageSize=200", key));
 }
 
-/** Gemini's schema dialect wants upper-case type names. */
-function geminiSchema(node: unknown): unknown {
-  if (Array.isArray(node)) return node.map(geminiSchema);
-  if (node && typeof node === "object") {
-    return Object.fromEntries(
-      Object.entries(node).map(([k, v]) => [k, k === "type" && typeof v === "string" ? v.toUpperCase() : geminiSchema(v)]),
-    );
-  }
-  return node;
-}
-
-/** Ask Gemini to explain the derivation; the answer is validated against `base`. */
-export async function analyzeDerivation(input: string, base: Derivation, key: string, model: string): Promise<Derivation> {
-  const body = (await call("/models/" + encodeURIComponent(model) + ":generateContent", key, {
-    method: "POST",
-    body: JSON.stringify({
-      contents: [{ role: "user", parts: [{ text: buildPrompt(input, base) }] }],
-      generationConfig: {
-        temperature: 0.2,
-        responseMimeType: "application/json",
-        responseSchema: geminiSchema(RESPONSE_SCHEMA),
-      },
-    }),
-  })) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> }; finishReason?: string }>; promptFeedback?: { blockReason?: string } };
-  if (body.promptFeedback?.blockReason) throw new AiError("Gemini declined this input (" + body.promptFeedback.blockReason + ").");
-  const text = body.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
-  if (!text) throw new AiError("Gemini returned an empty answer (" + (body.candidates?.[0]?.finishReason ?? "no reason") + ").");
-  let json: unknown;
+function parse(text: string, base: Derivation): Derivation {
   try {
-    json = JSON.parse(text);
+    return mergeAi(JSON.parse(text), base);
   } catch {
     throw new AiError("Gemini's answer was not valid JSON - try again.");
   }
-  return mergeAi(json, base);
+}
+
+/** With the user's own key, straight from the browser to Google. */
+export async function analyzeDerivation(input: string, base: Derivation, key: string, model: string): Promise<Derivation> {
+  const body = await call("/models/" + encodeURIComponent(model) + ":generateContent", key, { method: "POST", body: JSON.stringify(geminiRequest(input)) });
+  const answer = geminiAnswer(body);
+  if ("error" in answer) throw new AiError(answer.error);
+  return parse(answer.text, base);
+}
+
+/** Whether this deployment has a site key (false on static hosts and locally without one). */
+export async function siteAvailable(): Promise<boolean> {
+  try {
+    const res = await fetch("/api/analyze", { method: "GET" });
+    return res.ok && ((await res.json()) as { configured?: boolean }).configured === true;
+  } catch {
+    return false;
+  }
+}
+
+/** Without a key: through the site's own route. */
+export async function analyzeViaSite(input: string, base: Derivation): Promise<{ result: Derivation; model: string }> {
+  let res: Response;
+  try {
+    res = await fetch("/api/analyze", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ input }) });
+  } catch {
+    throw new AiError("Could not reach the server - check your connection.");
+  }
+  const body = (await res.json().catch(() => ({}))) as { text?: string; model?: string; error?: string };
+  if (!res.ok || !body.text) throw new AiError(body.error ?? "Analysis failed (" + res.status + ").");
+  return { result: parse(body.text, base), model: body.model ?? "" };
 }

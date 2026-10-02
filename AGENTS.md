@@ -8,11 +8,12 @@ depth.
 ## What this project is
 
 CleanMath turns messy LLM-generated math into LaTeX that compiles on the first
-try. Next.js 16 App Router, React 19, single static page, Tailwind, KaTeX. There is no
-backend and there must never be one: no route handlers, no server actions, and
-no request that carries user text. Privacy is a product feature, not an
-implementation detail. There are exactly four exits, all deliberate and all
-triggered by an explicit click:
+try. Next.js 16 App Router, React 19, single static page, Tailwind, KaTeX.
+Everything runs in the browser. The one server piece is `app/api/analyze`, and
+nothing else may be added: no other route handlers, no server actions, no
+analytics, and no request that carries user text except the click-triggered
+exits below. Privacy is a product feature, not an implementation detail. There
+are exactly four exits, all deliberate and all triggered by an explicit click:
 
 - **Open in Overleaf** (`components/exporters.ts`) POSTs the document to
   Overleaf's `/docs` endpoint - only on an explicit click, and its tooltip says so.
@@ -22,9 +23,14 @@ triggered by an explicit click:
   `https://arxiv.org/src/<id>` - the only thing sent is the paper ID the user
   typed. Use `/src/`, not `/e-print/`: the latter redirects without CORS headers.
 - **Derivation notes -> Analyze with Gemini** (`components/derivation/gemini.ts`)
-  sends the document to Google's Gemini API with the user's own key (stored in
-  their browser, sent as the `x-goog-api-key` header, never in a URL). The
-  answer is validated by `lib/derivation.ts` `mergeAi` before it is shown.
+  sends the document to Google's Gemini API. With the user's own key the
+  browser calls Google directly (key stored in their browser, sent as the
+  `x-goog-api-key` header, never in a URL). Without one it goes through
+  `app/api/analyze/route.ts`, which holds the site key (`GEMINI_API_KEY`, a
+  server secret). That route must stay narrow: it accepts only `{ input }`,
+  builds the prompt itself via `geminiRequest`, refuses cross-origin calls,
+  rate-limits per visitor and per day, and stores and logs nothing
+  (`tests/api.spec.ts`). Either way `mergeAi` validates the answer.
 
 Anything else that would send data off the page does not belong.
 

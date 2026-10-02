@@ -9,7 +9,7 @@ import { useToast } from "@/components/Toast";
 import { bottomUp, ideasTikz, offlineModel, topDown, variablesTable, type Derivation, type Step, type StepKind, type TreeNode } from "@/lib/derivation";
 import { aiStore } from "@/lib/persistedStore";
 import type { StudioContext } from "../studio/types";
-import { AiError, analyzeDerivation, listModels, type ModelInfo } from "./gemini";
+import { AiError, analyzeDerivation, analyzeViaSite, listModels, siteAvailable, type ModelInfo } from "./gemini";
 
 /**
  * Derivation notes: what a document's formulas *mean* and how they build on
@@ -432,7 +432,7 @@ function IdeasView({ d, onAnalyze, steps }: { d: Derivation; onAnalyze: () => vo
 
 /* -------------------------------------------------------------- shell */
 
-function Settings({ onClose }: { onClose: () => void }) {
+function Settings({ site, onClose }: { site: boolean; onClose: () => void }) {
   const ai = useSyncExternalStore(aiStore.subscribe, aiStore.get, aiStore.getServer);
   const [key, setKey] = useState(ai.apiKey);
   const [models, setModels] = useState<ModelInfo[]>([]);
@@ -466,6 +466,11 @@ function Settings({ onClose }: { onClose: () => void }) {
         </a>
         . It stays in this browser and is sent only to Google, only when you press Analyze. On the free tier Google may use prompts to improve its models.
       </p>
+      {site && !ai.apiKey && (
+        <p className="rounded-lg bg-surface-2 px-2 py-1.5 leading-snug text-muted">
+          Optional: Analyze already works through this site&apos;s shared key, with a small per-visitor limit. Your own key skips that limit.
+        </p>
+      )}
       <input
         type="password"
         value={key}
@@ -518,6 +523,8 @@ export default function DerivationView({ input, selectLines, insert }: StudioCon
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [settings, setSettings] = useState(false);
+  const [site, setSite] = useState<boolean | null>(null);
+  const [siteModel, setSiteModel] = useState("");
   const [, bump] = useState(0);
   const toast = useToast();
 
@@ -530,6 +537,14 @@ export default function DerivationView({ input, selectLines, insert }: StudioCon
   const steps = useMemo(() => new Map(d.steps.map((s) => [s.id, s])), [d]);
 
   useEffect(() => {
+    let live = true;
+    void siteAvailable().then((ok) => live && setSite(ok));
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!settings) return;
     const close = () => setSettings(false);
     window.addEventListener("click", close);
@@ -537,19 +552,28 @@ export default function DerivationView({ input, selectLines, insert }: StudioCon
   }, [settings]);
 
   const analyze = async () => {
-    if (!ai.apiKey) {
+    // No key of their own: the site's shared key, when this deployment has one.
+    const viaSite = !ai.apiKey && (site ?? (await siteAvailable()));
+    if (!ai.apiKey && !viaSite) {
       setSettings(true);
       return;
     }
     setBusy(true);
     setError(null);
     try {
-      let model = ai.model;
-      if (!model) {
-        model = (await listModels(ai.apiKey))[0]?.id ?? "";
-        aiStore.set({ ...ai, model });
+      let result: Derivation;
+      if (viaSite) {
+        const r = await analyzeViaSite(source, offline);
+        result = r.result;
+        setSiteModel(r.model);
+      } else {
+        let model = ai.model;
+        if (!model) {
+          model = (await listModels(ai.apiKey))[0]?.id ?? "";
+          aiStore.set({ ...ai, model });
+        }
+        result = await analyzeDerivation(source, offline, ai.apiKey, model);
       }
-      const result = await analyzeDerivation(source, offline, ai.apiKey, model);
       aiCache.set(key, result);
       bump((n) => n + 1);
       toast("Analysis ready - " + result.steps.length + " steps, " + result.variables.length + " variables");
@@ -579,14 +603,14 @@ export default function DerivationView({ input, selectLines, insert }: StudioCon
             </button>
           ))}
         </div>
-        <span className={"ml-auto rounded-full px-2 py-0.5 text-[10px] font-semibold " + (d.source === "ai" ? (outdated ? "bg-surface-2 text-faint" : "bg-accent/10 text-accent") : "bg-surface-2 text-faint")} title={d.source === "ai" ? "Explained by " + (ai.model || "Gemini") : "From the text alone - no AI"}>
+        <span className={"ml-auto rounded-full px-2 py-0.5 text-[10px] font-semibold " + (d.source === "ai" ? (outdated ? "bg-surface-2 text-faint" : "bg-accent/10 text-accent") : "bg-surface-2 text-faint")} title={d.source === "ai" ? "Explained by " + ((ai.apiKey ? ai.model : siteModel) || "Gemini") : "From the text alone - no AI"}>
           {d.source === "ai" ? (outdated ? "AI · outdated" : "AI") : "Offline"}
         </span>
         <button
           type="button"
           onClick={() => void analyze()}
           disabled={busy}
-          title={"Explain this derivation with Gemini" + (ai.model ? " (" + ai.model + ")" : "")}
+          title={"Explain this derivation with Gemini" + (ai.apiKey ? " - your key" + (ai.model ? ", " + ai.model : "") : site ? " - free, via this site" : "")}
           className="press flex items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-1 text-[11px] font-semibold text-text shadow-sm transition-colors hover:border-[#4b8cf5]/60 disabled:opacity-60"
         >
           {busy ? <Loader2 size={13} className="animate-spin text-[#4b8cf5]" /> : <GeminiStar size={13} />}
@@ -605,7 +629,7 @@ export default function DerivationView({ input, selectLines, insert }: StudioCon
         >
           <KeyRound size={13} />
         </button>
-        {settings && <Settings onClose={() => setSettings(false)} />}
+        {settings && <Settings site={!!site} onClose={() => setSettings(false)} />}
       </div>
 
       {error && <div className="shrink-0 border-b border-danger/20 bg-danger/[0.06] px-3 py-1.5 text-xs text-danger">{error}</div>}

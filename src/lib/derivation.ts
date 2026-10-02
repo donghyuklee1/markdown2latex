@@ -506,3 +506,48 @@ export function ideasTikz(ideas: ReadonlyArray<Idea>, links: ReadonlyArray<IdeaL
     "\\end{tikzpicture}",
   ].join("\n");
 }
+
+/* ------------------------------------------------- Gemini request shape */
+/* Shared by the browser client (user's own key) and the site's server route
+ * (site key), so both send exactly the same prompt and schema. */
+
+/** Gemini's schema dialect wants upper-case type names. */
+export function geminiSchema(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(geminiSchema);
+  if (node && typeof node === "object") {
+    return Object.fromEntries(Object.entries(node).map(([k, v]) => [k, k === "type" && typeof v === "string" ? v.toUpperCase() : geminiSchema(v)]));
+  }
+  return node;
+}
+
+/** The generateContent body for analysing `input`. */
+export function geminiRequest(input: string): object {
+  return {
+    contents: [{ role: "user", parts: [{ text: buildPrompt(input, offlineModel(input)) }] }],
+    generationConfig: { temperature: 0.2, responseMimeType: "application/json", responseSchema: geminiSchema(RESPONSE_SCHEMA) },
+  };
+}
+
+/** The JSON text of a generateContent answer, or an error message. */
+export function geminiAnswer(body: unknown): { text: string } | { error: string } {
+  const b = (body ?? {}) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> }; finishReason?: string }>; promptFeedback?: { blockReason?: string } };
+  if (b.promptFeedback?.blockReason) return { error: "Gemini declined this input (" + b.promptFeedback.blockReason + ")." };
+  const text = b.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
+  return text ? { text } : { error: "Gemini returned an empty answer (" + (b.candidates?.[0]?.finishReason ?? "no reason") + ")." };
+}
+
+export interface ModelInfo {
+  id: string;
+  label: string;
+}
+
+/** Usable text models from a models.list answer: newest first, Flash before Pro. */
+export function rankModels(body: unknown): ModelInfo[] {
+  const models = ((body ?? {}) as { models?: Array<{ name: string; displayName?: string; supportedGenerationMethods?: string[] }> }).models ?? [];
+  const usable = models.filter(
+    (m) => m.supportedGenerationMethods?.includes("generateContent") && /gemini/i.test(m.name) && !/(image|tts|audio|live|embedding|vision|aqa|learnlm)/i.test(m.name),
+  );
+  const version = (n: string) => Number(/gemini-(\d+(?:\.\d+)?)/.exec(n)?.[1] ?? 0);
+  const rank = (n: string) => (/flash/.test(n) && !/lite/.test(n) ? 0 : /flash/.test(n) ? 1 : 2) + (/(preview|exp)/.test(n) ? 0.5 : 0);
+  return usable.sort((a, b) => version(b.name) - version(a.name) || rank(a.name) - rank(b.name)).map((m) => ({ id: m.name.replace(/^models\//, ""), label: m.displayName ?? m.name }));
+}

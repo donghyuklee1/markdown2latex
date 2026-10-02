@@ -1,5 +1,6 @@
-# CleanMath is a static, client-only app: the image is a build stage plus a
-# standalone Next.js server with no runtime secrets and no outbound calls.
+# CleanMath runs in the browser: the image is a build stage plus a standalone
+# Next.js server. Its one optional secret is GEMINI_API_KEY (pass with -e) for
+# the shared "Analyze with Gemini" route; without it that route answers 501.
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./

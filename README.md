@@ -355,7 +355,7 @@ src/
 
 ```bash
 npm run verify     # lint + typecheck + tests + production build - run before pushing
-npm test           # 692 checks in 24 spec files: engine rules (each with a
+npm test           # 705 checks in 25 spec files: engine rules (each with a
                    # must-not-fire test), KaTeX rendering of every example and
                    # starter, every Tool and Studio feature, idempotence
 npm run examples   # regenerate examples/ (CI fails if it is stale)
@@ -364,17 +364,28 @@ npm run logos      # rebuild the logo PNGs from static/logo-source.png
 
 ## Privacy
 
-There is no backend: no route handlers, no server actions, no analytics. Your
-text is parsed in your tab and stored only in your browser's `localStorage`.
+Everything runs in your browser: no accounts, no analytics. Your text is parsed
+in your tab and stored only in your browser's `localStorage`.
 Share links carry the text in the URL fragment, which is never sent in a request.
 
 A few things are deliberate exceptions, and only happen when you click them:
 **Open in Overleaf** sends the document to Overleaf (that is the point of it);
 **PNG export** loads this site's own KaTeX font files to draw the image - no text
 goes with that request; the **arXiv extractor** sends the paper ID to arxiv.org;
-and **Analyze with Gemini** sends the document to Google's Gemini API with *your*
-key, which stays in your browser (on Google's free tier, prompts may be used to
-improve their models).
+and **Analyze with Gemini** sends the document to Google's Gemini API, either
+through this site's one server route with the site's key (rate-limited, nothing
+stored or logged), or directly from your browser with *your* key if you add one
+(it stays in your browser). On Google's free tier, prompts may be used to
+improve their models.
+
+### Deploying
+
+The site deploys to Vercel as-is (`vercel --prod`, or connect the GitHub repo
+for a deploy on every push). To let visitors use Analyze with no setup, set a
+free [Google AI Studio](https://aistudio.google.com/apikey) key as the
+`GEMINI_API_KEY` environment variable; optional `GEMINI_MODEL` pins a model and
+`GEMINI_DAILY_LIMIT` (default 400) caps shared analyses per day. Without a key
+the site still works, and visitors can paste their own. See `.env.example`.
 
 ## Roadmap
 
