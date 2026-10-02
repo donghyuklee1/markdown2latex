@@ -1,5 +1,5 @@
 import { check, finish } from "./harness";
-import { bottomUp, mergeAi, namesIn, offlineModel, reduceEdges, topDown, variablesTable, type Step } from "../src/lib/derivation";
+import { bottomUp, buildPrompt, geminiRequest, mergeAi, namesIn, offlineModel, reduceEdges, rejectsThinking, thinkingConfig, topDown, variablesTable, type Step } from "../src/lib/derivation";
 
 const SRC = String.raw`The critical field:
 $$E_{crit} = \frac{q N_a W_{BR}}{\epsilon_s}$$
@@ -55,4 +55,18 @@ check("AI: garbage input degrades to the offline model's variables", mergeAi(nul
 /* --- LaTeX table --------------------------------------------------------------- */
 const t = variablesTable([{ symbol: "N_a", meaning: "doping & density", units: "cm^-3", domain: "", source: "inferred", line: null }]);
 check("variable table: booktabs, escaped text, units column only when needed", [t.includes("\\toprule"), t.includes("doping \\& density"), t.includes("Units"), !t.includes("Domain")].join(","), "true,true,true,true");
+
+/* --- speed: thinking and parts ------------------------------------------------------ */
+check("thinking: Gemini 3 Flash minimal, Pro low", JSON.stringify([thinkingConfig("gemini-3.8-flash"), thinkingConfig("gemini-3.5-pro")]), '[{"thinkingLevel":"minimal"},{"thinkingLevel":"low"}]');
+check("thinking: 2.5 Flash off, 2.5 Pro small budget, older none", JSON.stringify([thinkingConfig("gemini-2.5-flash"), thinkingConfig("gemini-2.5-pro"), thinkingConfig("gemini-2.0-flash") ?? null]), '[{"thinkingBudget":0},{"thinkingBudget":128},null]');
+const g = geminiRequest(SRC, "steps", "gemini-3.8-flash") as { generationConfig: Record<string, unknown> };
+check("request: carries the thinking setting", JSON.stringify(g.generationConfig.thinkingConfig), '{"thinkingLevel":"minimal"}');
+check("request: without thinking when asked", String("thinkingConfig" in (geminiRequest(SRC, "steps", "gemini-3.8-flash", false) as { generationConfig: object }).generationConfig), "false");
+const schemaKeys = (part: "steps" | "glossary") => Object.keys(((geminiRequest(SRC, part) as { generationConfig: { responseSchema: { properties: object } } }).generationConfig.responseSchema.properties)).join(",");
+check("parts: steps and glossary ask for disjoint things", schemaKeys("steps") + " | " + schemaKeys("glossary"), "title,steps | variables,ideas,ideaLinks");
+check("parts: prompts differ, both list the equations", [buildPrompt(SRC, d, "steps") !== buildPrompt(SRC, d, "glossary"), buildPrompt(SRC, d, "glossary").includes("s3 (")].join(","), "true,true");
+check("parts: a long document is cut", String(buildPrompt("x".repeat(50000), d).length < 33000), "true");
+check("thinking rejection is recognised", [rejectsThinking(400, "Thinking level is not supported"), rejectsThinking(400, "bad key"), rejectsThinking(503, "thinking")].join(","), "true,false,false");
+const stepsOnly = mergeAi({ title: "T", steps: ai.steps }, d);
+check("progressive: steps alone keep the offline variables", stepsOnly.variables.length === d.variables.length && stepsOnly.ideas.length === 0 ? "ok" : "bad", "ok");
 finish("derivation");

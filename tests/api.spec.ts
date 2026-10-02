@@ -29,11 +29,13 @@ async function main() {
   check("same-origin POST answers with Gemini's JSON text", ok.status + " " + out.model + " " + (out.text?.startsWith('{"title"') ? "json" : "?"), "200 gemini-test-flash json");
   const gen = sent.find((x) => x.url.includes(":generateContent"))!;
   check("server key goes to Google in a header", gen.key + " " + gen.url.includes("key="), "server-test-key false");
-  check("the prompt is built server-side from the document", gen.body === JSON.stringify(geminiRequest("$$E = mc^2$$")) ? "same" : "differs", "same");
+  check("the prompt is built server-side from the document", gen.body === JSON.stringify(geminiRequest("$$E = mc^2$$", "steps", "gemini-test-flash")) ? "same" : "differs", "same");
 
+  // The visitor already made one request above; burn 6 more so 6 remain.
+  for (let i = 0; i < 6; i++) await route.POST(req({ input: "$$a=b$$" }, { "x-forwarded-for": "1.2.3.4" }));
   const codes: number[] = [];
   for (let i = 0; i < 6; i++) codes.push((await route.POST(req({ input: "$$a=b$$" }, { "x-forwarded-for": "1.2.3.4" }))).status);
-  check("per-visitor limit: 6 per window, then 429", codes.join(","), "200,200,200,200,200,429");
+  check("per-visitor limit: 12 requests (6 two-part analyses) per window, then 429", codes.join(","), "200,200,200,200,200,429");
   check("another visitor is unaffected", String((await route.POST(req({ input: "$$a=b$$" }, { "x-forwarded-for": "5.6.7.8" }))).status), "200");
 
   // A model under "high demand": one retry, then the next model answers.
@@ -53,6 +55,29 @@ async function main() {
     String(url).includes("/models?") ? Response.json({ models: [] }) : Response.json({ error: {} }, { status: 503 })) as typeof fetch;
   const busy = await route.POST(req({ input: "$$a=b$$" }, { "x-forwarded-for": "9.9.9.8" }));
   check("every model busy: a clear 503, not a raw Gemini error", busy.status + " " + ((await busy.json()) as { error: string }).error, "503 Gemini is overloaded right now - try again in a minute.");
+
+  // A part is chosen by the client; anything else means "steps".
+  let lastBody = "";
+  globalThis.fetch = (async (url: string, init?: RequestInit) => {
+    if (String(url).includes(":generateContent")) lastBody = String(init?.body ?? "");
+    return String(url).includes("/models?") ? Response.json({ models: [] }) : Response.json({ candidates: [{ content: { parts: [{ text: "{}" }] } }] });
+  }) as typeof fetch;
+  await route.POST(req({ input: "$$a=b$$", part: "glossary" }, { "x-forwarded-for": "7.7.7.1" }));
+  check("part: glossary requested", String(lastBody.includes("ideaLinks")), "true");
+  await route.POST(req({ input: "$$a=b$$", part: "anything" }, { "x-forwarded-for": "7.7.7.2" }));
+  check("part: unknown falls back to steps", String(lastBody.includes("ideaLinks")), "false");
+
+  // A model that refuses the thinking setting is asked again without it.
+  const bodies: string[] = [];
+  globalThis.fetch = (async (url: string, init?: RequestInit) => {
+    if (String(url).includes("/models?")) return Response.json({ models: [] });
+    const b = String(init?.body ?? "");
+    bodies.push(b);
+    return b.includes("thinkingConfig") ? Response.json({ error: { message: "Thinking is not supported by this model." } }, { status: 400 }) : Response.json({ candidates: [{ content: { parts: [{ text: "{}" }] } }] });
+  }) as typeof fetch;
+  process.env.GEMINI_MODEL = "gemini-3.9-flash";
+  const th = await route.POST(req({ input: "$$a=b$$" }, { "x-forwarded-for": "7.7.7.3" }));
+  check("thinking refused: retried without it", th.status + " " + bodies.map((b) => (b.includes("thinkingConfig") ? "T" : "-")).join(""), "200 T-");
 
   check(
     "fallback order: chosen first, then stable before preview, Flash before Pro",

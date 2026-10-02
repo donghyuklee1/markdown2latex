@@ -11,8 +11,8 @@
  * Two sources fill it in:
  *  - `offlineModel` - deterministic, from the equations' own symbols and the
  *    prose definitions found in the text (no network, always available);
- *  - an LLM (Gemini, via the browser) - `buildPrompt` asks for JSON matching
- *    `RESPONSE_SCHEMA`, and `mergeAi` validates it against the offline model,
+ *  - an LLM (Gemini) - `buildPrompt` asks for JSON matching `PART_SCHEMAS`
+ *    (two parts, sent in parallel), and `mergeAi` validates it against the offline model,
  *    so the AI can add meaning but never invent equations or break line maps.
  *
  * Pure: no DOM, no network.
@@ -276,90 +276,106 @@ export function offlineModel(input: string): Derivation {
 
 /* ------------------------------------------------------------------ AI */
 
-/** JSON schema handed to the model (Gemini `responseSchema` / OpenAPI subset). */
-export const RESPONSE_SCHEMA = {
+/*
+ * The analysis is asked for in two independent parts, sent in parallel:
+ * "steps" (what each equation does and how they connect) and "glossary"
+ * (variables and the idea map). Two short answers arrive sooner than one long
+ * one, and the steps can be shown while the glossary is still on its way.
+ */
+export type AiPart = "steps" | "glossary";
+export const AI_PARTS: ReadonlyArray<AiPart> = ["steps", "glossary"];
+
+const STEP_ITEM = {
   type: "object",
   properties: {
+    id: { type: "string" },
+    kind: { type: "string", enum: ["definition", "assumption", "intermediate", "final"] },
+    latex: { type: "string" },
     title: { type: "string" },
-    steps: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          id: { type: "string" },
-          kind: { type: "string", enum: ["definition", "assumption", "intermediate", "final"] },
-          latex: { type: "string" },
-          title: { type: "string" },
-          summary: { type: "string" },
-          explanation: { type: "string" },
-          uses: { type: "array", items: { type: "string" } },
-        },
-        required: ["id", "kind", "title", "summary", "explanation", "uses"],
-      },
-    },
-    variables: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          symbol: { type: "string" },
-          meaning: { type: "string" },
-          units: { type: "string" },
-          domain: { type: "string" },
-          source: { type: "string", enum: ["explicit", "inferred"] },
-        },
-        required: ["symbol", "meaning", "source"],
-      },
-    },
-    ideas: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          id: { type: "string" },
-          label: { type: "string" },
-          detail: { type: "string" },
-          steps: { type: "array", items: { type: "string" } },
-        },
-        required: ["id", "label", "detail"],
-      },
-    },
-    ideaLinks: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: { from: { type: "string" }, to: { type: "string" }, label: { type: "string" } },
-        required: ["from", "to", "label"],
-      },
-    },
+    summary: { type: "string" },
+    explanation: { type: "string" },
+    uses: { type: "array", items: { type: "string" } },
   },
-  required: ["title", "steps", "variables", "ideas", "ideaLinks"],
-} as const;
+  required: ["id", "kind", "title", "summary", "explanation", "uses"],
+};
 
-/** The prompt: the document, plus the numbered equations the AI must refer to by id. */
-export function buildPrompt(input: string, base: Derivation): string {
+/** JSON schemas handed to the model (Gemini `responseSchema` / OpenAPI subset). */
+export const PART_SCHEMAS: Record<AiPart, object> = {
+  steps: {
+    type: "object",
+    properties: { title: { type: "string" }, steps: { type: "array", items: STEP_ITEM } },
+    required: ["title", "steps"],
+  },
+  glossary: {
+    type: "object",
+    properties: {
+      variables: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            symbol: { type: "string" },
+            meaning: { type: "string" },
+            units: { type: "string" },
+            domain: { type: "string" },
+            source: { type: "string", enum: ["explicit", "inferred"] },
+          },
+          required: ["symbol", "meaning", "source"],
+        },
+      },
+      ideas: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: { id: { type: "string" }, label: { type: "string" }, detail: { type: "string" }, steps: { type: "array", items: { type: "string" } } },
+          required: ["id", "label", "detail"],
+        },
+      },
+      ideaLinks: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: { from: { type: "string" }, to: { type: "string" }, label: { type: "string" } },
+          required: ["from", "to", "label"],
+        },
+      },
+    },
+    required: ["variables", "ideas", "ideaLinks"],
+  },
+};
+
+/** Long documents are cut: the equations list carries the structure anyway. */
+const PROMPT_DOC_MAX = 30000;
+
+/** The prompt for one part: the document plus the numbered equations to refer to by id. */
+export function buildPrompt(input: string, base: Derivation, part: AiPart = "steps"): string {
   const eqList = base.steps.map((s) => s.id + " (" + (s.label ?? "line " + (s.lines?.[0] ?? "?")) + "): " + s.latex).join("\n");
-  const doc = input.length > 60000 ? input.slice(0, 60000) + "\n[... truncated ...]" : input;
+  const doc = input.length > PROMPT_DOC_MAX ? input.slice(0, PROMPT_DOC_MAX) + "\n[... truncated ...]" : input;
+  const task =
+    part === "steps"
+      ? [
+          "Use exactly these ids for equation steps. You may add steps of kind \"assumption\" (or \"definition\" for one stated only in prose) with ids a1, a2, ...",
+          "For every step give:",
+          "- kind: definition, assumption, intermediate, or final (a result the document builds towards - there may be several).",
+          "- title: 2-6 words naming the step.",
+          "- summary: one short plain sentence (at most 18 words).",
+          "- explanation: 2-3 sentences: what it says, why it holds or is needed, how it is used. Maths inline as $...$.",
+          "- uses: ids of the steps it DIRECTLY builds on - never one already implied through another listed step.",
+          "title: the derivation's subject in under 8 words.",
+        ]
+      : [
+          "variables: every symbol used, with its meaning (from the text, or inferred from context and marked source \"inferred\"), units if physical else \"\", and domain (e.g. $\\mathbb{R}^{n}$) if known. Keep meanings under 12 words.",
+          "ideas: 3-6 key ideas (label 2-5 words, detail one sentence, steps = equation ids that express it).",
+          "ideaLinks: how ideas lead to each other (label: a short verb phrase).",
+        ];
   return [
-    "You analyse the mathematical derivation in a document for a reader who wants to understand it.",
+    "You analyse the mathematical derivation in a document for a reader who wants to understand it. Be concise.",
     "",
-    "The document's display equations are listed below with ids. Use exactly these ids for equation steps.",
-    "You may add steps of kind \"assumption\" (and \"definition\" for definitions stated only in prose) with new ids a1, a2, ... and latex \"\" or a short formula.",
-    "",
-    "For every step give:",
-    "- kind: definition (introduces a quantity), assumption (a modelling choice or condition), intermediate, or final (a result the document is building towards - there may be several).",
-    "- title: 2-6 words naming what the step is (e.g. \"Scaled dot-product attention\").",
-    "- summary: one plain sentence a student understands at a glance.",
-    "- explanation: 2-4 sentences: what it says, why it holds or why it is needed, and how it is used. Write maths inline as $...$ LaTeX.",
-    "- uses: ids of the steps it DIRECTLY builds on. Only direct dependencies - never list a step that is already implied through another listed step. Keep this minimal.",
-    "",
-    "variables: every symbol used, with its meaning (find it in the text, or infer it from context and mark source \"inferred\"), units if physical or \"\" otherwise, and domain (e.g. $\\mathbb{R}^{n\\times d}$) if known.",
-    "ideas: 3-7 key ideas of the derivation (label 2-5 words, detail one sentence, steps = ids that express it); ideaLinks: how ideas lead to each other (label: a short verb phrase).",
-    "title: the derivation's subject in under 8 words.",
+    ...task,
     "Answer in the language of the document's prose. Output JSON only.",
     "",
     "EQUATIONS:",
-    eqList || "(none detected - derive the steps from the text)",
+    eqList || "(none detected - work from the text)",
     "",
     "DOCUMENT:",
     doc,
@@ -520,13 +536,35 @@ export function geminiSchema(node: unknown): unknown {
   return node;
 }
 
-/** The generateContent body for analysing `input`. */
-export function geminiRequest(input: string): object {
+/**
+ * Thinking is what makes a "flash" answer slow; this task needs little of it.
+ * Gemini 3+ takes a level, 2.5 a token budget (Flash can switch it off, Pro
+ * cannot). Older models take neither.
+ */
+export function thinkingConfig(model: string): object | undefined {
+  const v = Number(/gemini-(\d+(?:\.\d+)?)/.exec(model)?.[1] ?? 0);
+  const pro = /pro/.test(model);
+  if (v >= 3) return { thinkingLevel: pro ? "low" : "minimal" };
+  if (v >= 2.5) return { thinkingBudget: pro ? 128 : 0 };
+  return undefined;
+}
+
+/** The generateContent body for one part of the analysis of `input`. */
+export function geminiRequest(input: string, part: AiPart = "steps", model = "", thinking = true): object {
+  const think = thinking ? thinkingConfig(model) : undefined;
   return {
-    contents: [{ role: "user", parts: [{ text: buildPrompt(input, offlineModel(input)) }] }],
-    generationConfig: { temperature: 0.2, responseMimeType: "application/json", responseSchema: geminiSchema(RESPONSE_SCHEMA) },
+    contents: [{ role: "user", parts: [{ text: buildPrompt(input, offlineModel(input), part) }] }],
+    generationConfig: {
+      temperature: 0.2,
+      responseMimeType: "application/json",
+      responseSchema: geminiSchema(PART_SCHEMAS[part]),
+      ...(think ? { thinkingConfig: think } : {}),
+    },
   };
 }
+
+/** A 400 about the thinking settings: the model wants none - ask again without. */
+export const rejectsThinking = (status: number, message: string) => status === 400 && /thinking/i.test(message);
 
 /** The JSON text of a generateContent answer, or an error message. */
 export function geminiAnswer(body: unknown): { text: string } | { error: string } {

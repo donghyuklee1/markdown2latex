@@ -168,3 +168,27 @@ export const aiStore = createPersistedStore<AiSettings>("cleanmath:ai:v1", { api
   const r = (raw ?? {}) as Partial<AiSettings>;
   return { apiKey: typeof r.apiKey === "string" ? r.apiKey : "", model: typeof r.model === "string" ? r.model : "" };
 });
+
+/* -------------------------------------------------------- analysis cache */
+
+export interface CachedAnalysis {
+  at: number;
+  model: string;
+  /** A validated Derivation (lib/derivation.ts) - stored as data. */
+  result: unknown;
+}
+
+/** The last few analyses by text hash, so reopening a document needs no new LLM call. */
+export const ANALYSIS_CACHE_MAX = 12;
+export const analysisStore = createPersistedStore<Record<string, CachedAnalysis>>("cleanmath:analyses:v1", {}, (raw) => {
+  if (!raw || typeof raw !== "object") return {};
+  const entries = Object.entries(raw as Record<string, CachedAnalysis>).filter(([, v]) => v && typeof v.at === "number" && v.result && typeof v.result === "object");
+  return Object.fromEntries(entries.sort((a, b) => b[1].at - a[1].at).slice(0, ANALYSIS_CACHE_MAX));
+});
+
+export function cacheAnalysis(hash: string, model: string, result: unknown): void {
+  analysisStore.update((prev) => {
+    const next = Object.entries({ ...prev, [hash]: { at: Date.now(), model, result } }).sort((a, b) => b[1].at - a[1].at);
+    return Object.fromEntries(next.slice(0, ANALYSIS_CACHE_MAX));
+  });
+}

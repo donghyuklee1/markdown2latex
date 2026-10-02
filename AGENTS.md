@@ -13,7 +13,7 @@ Everything runs in the browser. The one server piece is `app/api/analyze`, and
 nothing else may be added: no other route handlers, no server actions, no
 analytics, and no request that carries user text except the click-triggered
 exits below. Privacy is a product feature, not an implementation detail. There
-are exactly four exits, all deliberate and all triggered by an explicit click:
+are exactly five exits, all deliberate, each triggered by an explicit user action:
 
 - **Open in Overleaf** (`components/exporters.ts`) POSTs the document to
   Overleaf's `/docs` endpoint - only on an explicit click, and its tooltip says so.
@@ -31,6 +31,13 @@ are exactly four exits, all deliberate and all triggered by an explicit click:
   builds the prompt itself via `geminiRequest`, refuses cross-origin calls,
   rate-limits per visitor and per day, and stores and logs nothing
   (`tests/api.spec.ts`). Either way `mergeAi` validates the answer.
+- **Accounts** (`components/account/cloud.ts`, `docs/ACCOUNTS.md`): only after
+  the user signs in with Google or GitHub, their snapshots, analyses and
+  preferences sync to Supabase, straight from the browser. Row-level security
+  is the access control (`tests/db.spec.ts`); the Gemini key is never synced
+  (`SYNC_KEYS`). The Supabase library is not even loaded for a visitor who has
+  not signed in, and the app must never wait on sync - local storage stays the
+  source of truth.
 
 Anything else that would send data off the page does not belong.
 

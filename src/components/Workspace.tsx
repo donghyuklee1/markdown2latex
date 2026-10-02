@@ -65,6 +65,12 @@ export default function Workspace() {
   const setInput = docs.setText;
   const title = docTitle(doc, docState.docs.indexOf(doc) + 1);
   const [leftRail, setLeftRail] = useState<string | null>(null);
+  // The account dock and menu ask for a rail panel (History) by event.
+  useEffect(() => {
+    const onOpen = (e: Event) => setLeftRail((e as CustomEvent<string>).detail);
+    window.addEventListener("cleanmath:open-rail", onOpen);
+    return () => window.removeEventListener("cleanmath:open-rail", onOpen);
+  }, []);
   const [rightRail, setRightRail] = useState<string | null>(null);
   const setUi = useCallback((patch: Partial<UiPrefs>) => uiStore.update((prev) => ({ ...prev, ...patch })), []);
 

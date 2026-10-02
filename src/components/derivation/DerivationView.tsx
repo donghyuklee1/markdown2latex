@@ -6,10 +6,12 @@ import BrandMark, { GeminiStar } from "@/components/BrandMark";
 import { InlineMath } from "@/components/Katex";
 import { writeClipboard } from "@/components/exporters";
 import { useToast } from "@/components/Toast";
-import { bottomUp, ideasTikz, offlineModel, topDown, variablesTable, type Derivation, type Step, type StepKind, type TreeNode } from "@/lib/derivation";
-import { aiStore } from "@/lib/persistedStore";
+import { bottomUp, ideasTikz, mergeAi, offlineModel, topDown, variablesTable, type AiPart, type Derivation, type Step, type StepKind, type TreeNode } from "@/lib/derivation";
+import { aiStore, analysisStore, cacheAnalysis } from "@/lib/persistedStore";
 import type { StudioContext } from "../studio/types";
-import { AiError, analyzeDerivation, analyzeViaSite, listModels, siteAvailable, type ModelInfo } from "./gemini";
+import { hashText } from "@/lib/account";
+import { cloudAnalysis, saveCloudAnalysis } from "../account/cloud";
+import { AiError, analyzePart, analyzePartViaSite, listModels, siteAvailable, type ModelInfo, type PartAnswer } from "./gemini";
 
 /**
  * Derivation notes: what a document's formulas *mean* and how they build on
@@ -35,13 +37,10 @@ const KIND: Record<StepKind, { label: string; cls: string }> = {
   final: { label: "Result", cls: "bg-accent/15 text-accent" },
 };
 
-/* Analyses survive tab switches and remounts for the session. */
-const aiCache = new Map<string, Derivation>();
-function hash(s: string): string {
-  let h = 5381;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
-  return String(h >>> 0) + ":" + s.length;
-}
+/* Analyses are kept by text hash in this browser (and, signed in, in the
+ * cloud), so reopening a document shows its analysis at once. After an edit
+ * the most recent one stays on screen, marked outdated. */
+const isDerivation = (x: unknown): x is Derivation => !!x && typeof x === "object" && Array.isArray((x as Derivation).steps);
 
 /* ------------------------------------------------------------ pieces */
 
@@ -525,13 +524,19 @@ export default function DerivationView({ input, selectLines, insert }: StudioCon
   const [settings, setSettings] = useState(false);
   const [site, setSite] = useState<boolean | null>(null);
   const [siteModel, setSiteModel] = useState("");
-  const [, bump] = useState(0);
+  const [partial, setPartial] = useState<{ key: string; d: Derivation } | null>(null);
   const toast = useToast();
+  const store = useSyncExternalStore(analysisStore.subscribe, analysisStore.get, analysisStore.getServer);
 
-  const key = hash(source);
-  const cached = aiCache.get(key);
+  const key = useMemo(() => hashText(source), [source]);
+  const stored = store[key]?.result;
+  const cached = isDerivation(stored) ? stored : partial?.key === key ? partial.d : null;
   // An analysis of a slightly older version still helps: show it, marked outdated.
-  const lastAi = cached ?? [...aiCache.values()].pop() ?? null;
+  const newest = useMemo(() => {
+    const top = Object.values(store).sort((a, b) => b.at - a.at)[0]?.result;
+    return isDerivation(top) ? top : null;
+  }, [store]);
+  const lastAi = cached ?? newest;
   const d = cached ?? (lastAi && lastAi.steps.length ? lastAi : offline);
   const outdated = !cached && d === lastAi;
   const steps = useMemo(() => new Map(d.steps.map((s) => [s.id, s])), [d]);
@@ -552,6 +557,14 @@ export default function DerivationView({ input, selectLines, insert }: StudioCon
   }, [settings]);
 
   const analyze = async () => {
+    setError(null);
+    // Signed in: an analysis of this exact text from another device is instant.
+    const fromCloud = await cloudAnalysis(source).catch(() => null);
+    if (isDerivation(fromCloud) && !(d.source === "ai" && !outdated)) {
+      cacheAnalysis(key, "", fromCloud);
+      toast("Loaded your saved analysis");
+      return;
+    }
     // No key of their own: the site's shared key, when this deployment has one.
     const viaSite = !ai.apiKey && (site ?? (await siteAvailable()));
     if (!ai.apiKey && !viaSite) {
@@ -559,26 +572,28 @@ export default function DerivationView({ input, selectLines, insert }: StudioCon
       return;
     }
     setBusy(true);
-    setError(null);
+    const started = performance.now();
     try {
-      let result: Derivation;
-      if (viaSite) {
-        const r = await analyzeViaSite(source, offline);
-        result = r.result;
-        setSiteModel(r.model);
-      } else {
-        let model = ai.model;
-        if (!model) {
-          model = (await listModels(ai.apiKey))[0]?.id ?? "";
-          aiStore.set({ ...ai, model });
-        }
-        const r = await analyzeDerivation(source, offline, ai.apiKey, model);
-        result = r.result;
-        if (r.model !== model) toast(model + " was busy - answered by " + r.model);
+      let model = ai.model;
+      if (!viaSite && !model) {
+        model = (await listModels(ai.apiKey))[0]?.id ?? "";
+        aiStore.set({ ...ai, model });
       }
-      aiCache.set(key, result);
-      bump((n) => n + 1);
-      toast("Analysis ready - " + result.steps.length + " steps, " + result.variables.length + " variables");
+      const run = (part: AiPart): Promise<PartAnswer> => (viaSite ? analyzePartViaSite(source, part) : analyzePart(source, part, ai.apiKey, model));
+      // Both parts at once; the steps are shown the moment they arrive.
+      const stepsP = run("steps");
+      const glossaryP = run("glossary");
+      const steps = await stepsP;
+      setPartial({ key, d: mergeAi(steps.json, offline) });
+      const glossary = await glossaryP.catch(() => null);
+      const result = mergeAi({ ...(steps.json as object), ...((glossary?.json as object) ?? {}) }, offline);
+      cacheAnalysis(key, steps.model, result);
+      saveCloudAnalysis(source, steps.model, result);
+      setPartial(null);
+      if (viaSite) setSiteModel(steps.model);
+      else if (steps.model !== model) toast(model + " was busy - answered by " + steps.model);
+      const secs = ((performance.now() - started) / 1000).toFixed(1);
+      toast("Analysis ready in " + secs + " s - " + result.steps.length + " steps, " + result.variables.length + " variables" + (glossary ? "" : " (glossary unavailable)"));
     } catch (e) {
       setError(e instanceof AiError ? e.message : "Analysis failed: " + String(e));
     } finally {

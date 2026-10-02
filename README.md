@@ -227,6 +227,9 @@ Every rule is conservative by design: each one has a test where it must fire
   and assumptions to the result. Only direct dependencies are drawn (redundant
   links are removed), so a chain stays a chain. *Variables* builds a booktabs
   LaTeX notation table; *Ideas* maps the key ideas (exportable as TikZ).
+  Analysis is quick: two small requests run in parallel with minimal model
+  "thinking", the steps appear while the glossary is still arriving, and a
+  text analysed before (here or, signed in, on another device) opens instantly.
   It works offline from the text alone; **Analyze with Gemini** adds roles,
   plain-language explanations and inferred definitions, using your own free
   key from [Google AI Studio](https://aistudio.google.com/apikey).
@@ -355,7 +358,7 @@ src/
 
 ```bash
 npm run verify     # lint + typecheck + tests + production build - run before pushing
-npm test           # 708 checks in 25 spec files: engine rules (each with a
+npm test           # 759 checks in 27 spec files: engine rules (each with a
                    # must-not-fire test), KaTeX rendering of every example and
                    # starter, every Tool and Studio feature, idempotence
 npm run examples   # regenerate examples/ (CI fails if it is stale)
@@ -364,8 +367,11 @@ npm run logos      # rebuild the logo PNGs from static/logo-source.png
 
 ## Privacy
 
-Everything runs in your browser: no accounts, no analytics. Your text is parsed
-in your tab and stored only in your browser's `localStorage`.
+Everything runs in your browser, with no analytics. Your text is parsed in your
+tab and stored in your browser's `localStorage`. Accounts are optional: if you
+sign in with Google or GitHub (the circle at the bottom left), your history,
+analyses and preferences also sync to your account so they follow you to other
+devices - never your Gemini key - and "Delete cloud data" removes them.
 Share links carry the text in the URL fragment, which is never sent in a request.
 
 A few things are deliberate exceptions, and only happen when you click them:
@@ -386,6 +392,12 @@ free [Google AI Studio](https://aistudio.google.com/apikey) key as the
 `GEMINI_API_KEY` environment variable; optional `GEMINI_MODEL` pins a model and
 `GEMINI_DAILY_LIMIT` (default 400) caps shared analyses per day. Without a key
 the site still works, and visitors can paste their own. See `.env.example`.
+
+Sign-in with Google and GitHub, and cloud history, use Supabase: one SQL file
+and two public env vars, set up in about ten minutes - see
+[docs/ACCOUNTS.md](docs/ACCOUNTS.md), which also explains how it stays fast as
+users grow (browser-direct, per-user indexed rows, row-level security, local-first
+queued sync).
 
 ## Roadmap
 

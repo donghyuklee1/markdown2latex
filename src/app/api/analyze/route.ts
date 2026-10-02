@@ -7,14 +7,15 @@
  * and limits each visitor (per IP, per server instance - best effort) plus a
  * daily total that protects the free quota. Nothing is stored or logged.
  */
-import { fallbackModels, geminiAnswer, geminiRequest, rankModels, retryable, type ModelInfo } from "@/lib/derivation";
+import { AI_PARTS, fallbackModels, geminiAnswer, geminiRequest, rankModels, rejectsThinking, retryable, type AiPart, type ModelInfo } from "@/lib/derivation";
 
 export const maxDuration = 60;
 
 const API = "https://generativelanguage.googleapis.com/v1beta";
 const MAX_INPUT = 120_000;
-const PER_VISITOR = { count: 6, windowMs: 10 * 60_000 };
-const PER_DAY = Number(process.env.GEMINI_DAILY_LIMIT) || 400;
+// An analysis is two requests (steps + glossary), sent in parallel.
+const PER_VISITOR = { count: 12, windowMs: 10 * 60_000 };
+const PER_DAY = 2 * (Number(process.env.GEMINI_DAILY_LIMIT) || 400);
 
 const visitors = new Map<string, number[]>();
 let day = { date: "", count: 0 };
@@ -58,8 +59,9 @@ export async function POST(request: Request) {
   const origin = request.headers.get("origin");
   if (origin && new URL(origin).host !== request.headers.get("host")) return json({ error: "Cross-origin requests are not allowed." }, 403);
 
-  const body = (await request.json().catch(() => null)) as { input?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as { input?: unknown; part?: unknown } | null;
   const input = typeof body?.input === "string" ? body.input : "";
+  const part: AiPart = AI_PARTS.includes(body?.part as AiPart) ? (body!.part as AiPart) : "steps";
   if (!input.trim()) return json({ error: "Nothing to analyse." }, 400);
   if (input.length > MAX_INPUT) return json({ error: "The document is too long for the shared analysis - use your own key for long documents." }, 413);
 
@@ -69,16 +71,16 @@ export async function POST(request: Request) {
 
   // A busy model (503 "high demand", 429, 500) gets one retry after a pause,
   // then the next model in line; a retired one (404) is skipped at once.
-  const payload = JSON.stringify(geminiRequest(input));
   let lastStatus = 0;
   for (const m of await models(key)) {
-    for (let attempt = 0; attempt < 2; attempt++) {
+    let thinking = true;
+    for (let attempt = 0; attempt < 3; attempt++) {
       let res: Response;
       try {
         res = await fetch(API + "/models/" + encodeURIComponent(m) + ":generateContent", {
           method: "POST",
           headers: { "content-type": "application/json", "x-goog-api-key": key },
-          body: payload,
+          body: JSON.stringify(geminiRequest(input, part, m, thinking)),
         });
       } catch {
         return json({ error: "Could not reach Gemini." }, 502);
@@ -89,12 +91,18 @@ export async function POST(request: Request) {
         return "error" in out ? json({ error: out.error }, 502) : json({ text: out.text, model: m });
       }
       lastStatus = res.status;
+      const message = String((answer as { error?: { message?: string } }).error?.message ?? "");
+      if (thinking && rejectsThinking(res.status, message)) {
+        thinking = false;
+        continue;
+      }
       if (res.status === 404) {
         ranked = null;
         break;
       }
       if (!retryable(res.status)) return json({ error: "Gemini error " + res.status + "." }, 502);
-      if (attempt === 0) await wait(1200 + Math.random() * 800);
+      if (attempt > 0) break; // busy twice: next model
+      await wait(700 + Math.random() * 600);
     }
   }
   return lastStatus === 429

@@ -1,11 +1,13 @@
 import Header from "@/components/Header";
 import AppShell from "@/components/AppShell";
 import ShortcutsDialog from "@/components/ShortcutsDialog";
+import AccountDock from "@/components/account/AccountDock";
 import { ToastProvider } from "@/components/Toast";
 
 /**
- * Single-page workspace. Every transformation happens in the browser, so there
- * is no route handler, no server action, and nothing to log.
+ * Single-page workspace. Every transformation happens in the browser; the
+ * only server piece is /api/analyze (shared Gemini key), and accounts talk to
+ * Supabase directly from the browser.
  */
 export default function Page() {
   return (
@@ -15,6 +17,7 @@ export default function Page() {
         <AppShell />
       </div>
       <ShortcutsDialog />
+      <AccountDock />
     </ToastProvider>
   );
 }

@@ -9,7 +9,7 @@
  *
  * Either way the answer is validated by `mergeAi` against the offline model.
  */
-import { fallbackModels, geminiAnswer, geminiRequest, mergeAi, rankModels, retryable, type Derivation, type ModelInfo } from "@/lib/derivation";
+import { fallbackModels, geminiAnswer, geminiRequest, rankModels, rejectsThinking, retryable, type AiPart, type ModelInfo } from "@/lib/derivation";
 
 export type { ModelInfo };
 
@@ -49,34 +49,45 @@ export async function listModels(key: string): Promise<ModelInfo[]> {
   return rankModels(await call("/models?pageSize=200", key));
 }
 
-function parse(text: string, base: Derivation): Derivation {
+function parse(text: string): unknown {
   try {
-    return mergeAi(JSON.parse(text), base);
+    return JSON.parse(text);
   } catch {
     throw new AiError("Gemini's answer was not valid JSON - try again.");
   }
 }
 
+export interface PartAnswer {
+  json: unknown;
+  model: string;
+}
+
 /**
- * With the user's own key, straight from the browser to Google. A busy model
- * (503 "high demand", 429, 500) is retried once after a pause, then the next
- * model in line is tried; the result says which model answered.
+ * One part of the analysis with the user's own key, straight from the browser
+ * to Google. A busy model (503 "high demand", 429, 500) is retried once after a
+ * short pause, then the next model in line is tried; a model that rejects the
+ * thinking setting is asked again without it.
  */
-export async function analyzeDerivation(input: string, base: Derivation, key: string, model: string): Promise<{ result: Derivation; model: string }> {
-  const body = JSON.stringify(geminiRequest(input));
+export async function analyzePart(input: string, part: AiPart, key: string, model: string): Promise<PartAnswer> {
   let models = [model];
   let last: AiError | null = null;
   for (let i = 0; i < models.length; i++) {
-    for (let attempt = 0; attempt < 2; attempt++) {
+    let thinking = true;
+    for (let attempt = 0; attempt < 3; attempt++) {
       try {
+        const body = JSON.stringify(geminiRequest(input, part, models[i], thinking));
         const answer = geminiAnswer(await call("/models/" + encodeURIComponent(models[i]) + ":generateContent", key, { method: "POST", body }));
         if ("error" in answer) throw new AiError(answer.error);
-        return { result: parse(answer.text, base), model: models[i] };
+        return { json: parse(answer.text), model: models[i] };
       } catch (e) {
+        if (e instanceof AiError && thinking && rejectsThinking(e.status, e.message)) {
+          thinking = false;
+          continue;
+        }
         if (!(e instanceof AiError) || !(retryable(e.status) || e.status === 404)) throw e;
         last = e;
-        if (e.status === 404) break; // retired model: go straight to the next
-        if (attempt === 0) await wait(1500 + Math.random() * 1000);
+        if (e.status === 404 || attempt > 0) break; // retired, or busy twice: next model
+        await wait(700 + Math.random() * 600);
       }
     }
     if (i === 0) models = fallbackModels(model, await listModels(key).catch(() => []));
@@ -94,15 +105,15 @@ export async function siteAvailable(): Promise<boolean> {
   }
 }
 
-/** Without a key: through the site's own route. */
-export async function analyzeViaSite(input: string, base: Derivation): Promise<{ result: Derivation; model: string }> {
+/** One part without a key of the user's own: through the site's route. */
+export async function analyzePartViaSite(input: string, part: AiPart): Promise<PartAnswer> {
   let res: Response;
   try {
-    res = await fetch("/api/analyze", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ input }) });
+    res = await fetch("/api/analyze", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ input, part }) });
   } catch {
     throw new AiError("Could not reach the server - check your connection.");
   }
   const body = (await res.json().catch(() => ({}))) as { text?: string; model?: string; error?: string };
-  if (!res.ok || !body.text) throw new AiError(body.error ?? "Analysis failed (" + res.status + ").");
-  return { result: parse(body.text, base), model: body.model ?? "" };
+  if (!res.ok || !body.text) throw new AiError(body.error ?? "Analysis failed (" + res.status + ").", res.status);
+  return { json: parse(body.text), model: body.model ?? "" };
 }
