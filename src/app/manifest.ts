@@ -12,6 +12,9 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: THEME_COLORS.light,
     theme_color: THEME_COLORS.light,
     categories: ["education", "productivity", "utilities"],
-    icons: [{ src: "/icon.png", sizes: "227x227", type: "image/png", purpose: "any" }],
+    icons: [
+      { src: "/icon.png", sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: "/icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
+    ],
   };
 }

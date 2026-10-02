@@ -11,7 +11,15 @@ export const metadata: Metadata = {
   applicationName: SITE_NAME,
   keywords: ["LaTeX", "KaTeX", "Overleaf", "Obsidian", "ChatGPT", "Claude", "markdown", "math", "converter"],
   alternates: { canonical: "/" },
-  icons: { icon: "/icon.png", apple: "/icon.png" },
+  // The sigma: SVG first (black, or white in a dark browser), PNG as fallback;
+  // iOS gets an opaque version on the paper colour.
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/icon.png", type: "image/png", sizes: "512x512" },
+    ],
+    apple: { url: "/apple-icon.png", sizes: "180x180" },
+  },
   openGraph: {
     type: "website",
     url: "/",

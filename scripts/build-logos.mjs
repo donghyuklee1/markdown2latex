@@ -107,37 +107,4 @@ for (const [name, ink] of targets) {
   console.log(`wrote static/${name} and public/${name} (${cw}x${ch}, ${(png.length / 1024).toFixed(1)} KB)`);
 }
 
-/* The app icon is the orange "2" alone, cropped square and left transparent so
- * it sits on any browser chrome. */
-let minX = w, minY = h, maxX = 0, maxY = 0;
-for (let y = 0; y < h; y++) {
-  for (let x = 0; x < w; x++) {
-    const ink = inkAt(px, x, y);
-    if (!ink || !ink.orange || ink.alpha < 0.5) continue;
-    if (x < minX) minX = x;
-    if (x > maxX) maxX = x;
-    if (y < minY) minY = y;
-    if (y > maxY) maxY = y;
-  }
-}
-const glyphW = maxX - minX + 1;
-const glyphH = maxY - minY + 1;
-const side = Math.round(Math.max(glyphW, glyphH) * 1.32); // breathing room
-const offX = minX - Math.round((side - glyphW) / 2);
-const offY = minY - Math.round((side - glyphH) / 2);
-const icon = Buffer.alloc(side * side * 4);
-for (let y = 0; y < side; y++) {
-  for (let x = 0; x < side; x++) {
-    const sx = offX + x, sy = offY + y;
-    if (sx < 0 || sy < 0 || sx >= w || sy >= h) continue;
-    const ink = inkAt(px, sx, sy);
-    if (!ink || !ink.orange || ink.alpha <= 0) continue;
-    const o = (y * side + x) * 4;
-    icon[o] = ORANGE[0]; icon[o + 1] = ORANGE[1]; icon[o + 2] = ORANGE[2];
-    icon[o + 3] = Math.round(ink.alpha * 255);
-  }
-}
-const iconPng = encodePng(side, side, icon);
-writeFileSync(join(ROOT, "public", "icon.png"), iconPng);
-writeFileSync(join(ROOT, "static", "icon.png"), iconPng);
-console.log(`wrote public/icon.png and static/icon.png (${side}x${side}, glyph ${glyphW}x${glyphH})`);
+/* The app icon is the sigma - see scripts/build-icon.mjs. */
