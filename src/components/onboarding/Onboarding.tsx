@@ -176,7 +176,7 @@ function DerivationArt() {
           </div>
         ))}
         <div className="ob-pop absolute -right-6 top-6 flex items-center gap-1 rounded-full border border-border bg-surface px-2 py-1 text-[10px] font-semibold text-text shadow-md" style={{ animationDelay: "1500ms" }}>
-          <span className="ob-spin inline-flex">
+          <span className="inline-flex">
             <GeminiStar size={12} />
           </span>
           explains each step
@@ -228,7 +228,7 @@ function AiArt() {
   return (
     <div className="flex h-full items-center justify-center gap-6 px-6">
       <span className="ob-ring relative flex h-14 w-14 items-center justify-center rounded-2xl border border-border bg-surface shadow-md">
-        <span className="ob-spin inline-flex">
+        <span className="inline-flex">
           <GeminiStar size={28} />
         </span>
       </span>

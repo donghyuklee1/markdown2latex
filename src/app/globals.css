@@ -743,7 +743,6 @@ html[data-resizing="y"] * {
 .ob-draw { stroke-dasharray: 140; stroke-dashoffset: 140; animation: ob-draw 600ms ease-out forwards; }
 .ob-dash { animation: ob-dash 1.2s linear infinite; }
 .ob-float { animation: ob-float 2.6s ease-in-out infinite; }
-.ob-spin { animation: ob-spin 4s linear infinite; }
 .ob-ring::after {
   content: "";
   position: absolute;
@@ -765,7 +764,6 @@ html[data-resizing="y"] * {
 @keyframes ob-draw { to { stroke-dashoffset: 0; } }
 @keyframes ob-dash { to { stroke-dashoffset: -16; } }
 @keyframes ob-float { 50% { transform: translate(-50%, -4px); } }
-@keyframes ob-spin { to { transform: rotate(360deg); } }
 @keyframes ob-ring { from { opacity: 0.7; transform: scale(1); } to { opacity: 0; transform: scale(1.45); } }
 .ob-scan { animation: ob-scan 1.4s ease-in-out infinite alternate; }
 @keyframes ob-scan { from { top: 0; } to { top: calc(100% - 3rem); } }

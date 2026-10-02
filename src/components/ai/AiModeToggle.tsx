@@ -10,7 +10,7 @@ import { runStore } from "./orchestrator";
 
 /**
  * Header switch for AI mode. Without a key it asks for one (saving the key
- * turns AI mode on); with one it toggles. A ring spins while a background
+ * turns AI mode on); with one it toggles. Its dot pulses while a background
  * analysis runs.
  */
 export default function AiModeToggle() {
@@ -39,11 +39,10 @@ export default function AiModeToggle() {
         (on ? "border-[#4b8cf5]/40 bg-[#4b8cf5]/10 text-text" : "border-border bg-surface text-muted hover:border-border-strong hover:text-text")
       }
     >
-      <span className={"relative flex " + (busy ? "animate-spin" : "")} style={busy ? { animationDuration: "1.6s" } : undefined}>
-        <GeminiStar size={14} className={on ? "" : "opacity-50 grayscale"} />
-      </span>
+      <GeminiStar size={14} className={on ? "" : "opacity-50 grayscale"} />
       <span className="hidden sm:inline">AI</span>
-      <span className={"h-1.5 w-1.5 rounded-full " + (on ? "bg-ok" : "bg-border-strong")} aria-hidden />
+      {/* The logo stays still; the dot pulses blue while an analysis runs. */}
+      <span className={"h-1.5 w-1.5 rounded-full " + (busy ? "animate-pulse bg-[#4b8cf5]" : on ? "bg-ok" : "bg-border-strong")} aria-hidden />
     </button>
   );
 }
