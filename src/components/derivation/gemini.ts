@@ -36,10 +36,24 @@ function retryAfterMs(res: Response, body: unknown): number {
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** Keys that Google only accepted as a bearer token (remembered for the session). */
+const bearerKeys = new Set<string>();
+
 export async function call(path: string, key: string, init?: RequestInit): Promise<unknown> {
   let res: Response;
+  const send = (bearer: boolean) =>
+    fetch(API + path, {
+      ...init,
+      headers: { "content-type": "application/json", ...(bearer ? { authorization: "Bearer " + key } : { "x-goog-api-key": key }), ...(init?.headers ?? {}) },
+    });
   try {
-    res = await fetch(API + path, { ...init, headers: { "content-type": "application/json", "x-goog-api-key": key, ...(init?.headers ?? {}) } });
+    res = await send(bearerKeys.has(key));
+    // Newer "AQ." credentials: if the API-key header is refused, try them as a bearer token once.
+    if ((res.status === 401 || res.status === 403) && !bearerKeys.has(key) && key.startsWith("AQ.")) {
+      const again = await send(true);
+      if (again.ok) bearerKeys.add(key);
+      if (again.ok || again.status !== 401) res = again;
+    }
   } catch (e) {
     if (e instanceof DOMException && e.name === "AbortError") throw e;
     throw new AiError("Could not reach Google - check your connection.");

@@ -93,7 +93,7 @@ export function KeyForm({ compact = false, onSaved }: { compact?: boolean; onSav
               value={key}
               onChange={(e) => setKey(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && key.trim() && void save()}
-              placeholder="Paste your Gemini API key (AIza...)"
+              placeholder="Paste your Gemini API key"
               autoComplete="off"
               spellCheck={false}
               aria-label="Gemini API key"

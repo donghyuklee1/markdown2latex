@@ -8,6 +8,7 @@
  * other devices pick it up. Saving a key turns AI mode on at once: no reload,
  * no extra switch.
  */
+import { plausibleApiKey } from "@/lib/derivation";
 import { aiStore } from "@/lib/persistedStore";
 import { saveKeyToAccount } from "../account/cloud";
 import { AiError, listModels, type ModelInfo } from "../derivation/gemini";
@@ -21,7 +22,7 @@ export interface SaveResult {
 /** Validate, store, turn AI mode on. Throws AiError with a readable message. */
 export async function saveKey(raw: string, remember = aiStore.get().remember): Promise<SaveResult> {
   const key = raw.trim();
-  if (!/^[\w-]{20,200}$/.test(key)) throw new AiError("That does not look like a Gemini API key (they start with \"AIza\").");
+  if (!plausibleApiKey(key)) throw new AiError("That does not look like an API key - paste the whole key from Google AI Studio, without spaces.");
   const models = await listModels(key);
   const prev = aiStore.get();
   const model = prev.model && models.some((m) => m.id === prev.model) ? prev.model : (models[0]?.id ?? "");

@@ -1,5 +1,5 @@
 import { check, finish } from "./harness";
-import { bottomUp, buildPrompt, connectionsFor, explainRequest, parseExplain, stepAtLine, fallbackModels, modelFamily, geminiRequest, mergeAi, namesIn, offlineModel, reduceEdges, rejectsThinking, thinkingConfig, topDown, variablesTable, type Step } from "../src/lib/derivation";
+import { bottomUp, buildPrompt, plausibleApiKey, connectionsFor, explainRequest, parseExplain, stepAtLine, fallbackModels, modelFamily, geminiRequest, mergeAi, namesIn, offlineModel, reduceEdges, rejectsThinking, thinkingConfig, topDown, variablesTable, type Step } from "../src/lib/derivation";
 
 const SRC = String.raw`The critical field:
 $$E_{crit} = \frac{q N_a W_{BR}}{\epsilon_s}$$
@@ -85,4 +85,8 @@ check("the step at a line", stepAtLine(d, 4)?.id ?? "none", "s2");
 const ex = explainRequest("E_{crit}", SRC, "gemini-3.8-flash") as { contents: Array<{ parts: Array<{ text: string }> }>; generationConfig: Record<string, unknown> };
 check("explain: the selection and its context go in, JSON comes out", [ex.contents[0].parts[0].text.includes("SELECTION:\nE_{crit}"), ex.generationConfig.responseMimeType].join(" "), "true application/json");
 check("explain: answers are validated", JSON.stringify([parseExplain({ meaning: " The field. ", symbols: [{ symbol: "E", meaning: "field" }, { symbol: 3 }] }), parseExplain({ meaning: "" })]), '[{"meaning":"The field.","symbols":[{"symbol":"E","meaning":"field"}]},null]');
+
+/* --- API key shapes --------------------------------------------------------------- */
+check("classic and newer key formats are accepted", [plausibleApiKey("AIzaSyA1234567890abcdefghijklmnopqrstu"), plausibleApiKey("AQ.Ab8RN6LQ2L9YbVzPUSFL4jvpqCYXojl4002qVsXRHEU94yy")].join(","), "true,true");
+check("spaces, short strings and junk are not", [plausibleApiKey("AIza abc def ghi jkl mno pqr"), plausibleApiKey("short"), plausibleApiKey("<script>alert(1)</script>xxxxxxxx")].join(","), "false,false,false");
 finish("derivation");

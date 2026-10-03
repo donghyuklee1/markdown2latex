@@ -592,6 +592,16 @@ export function rankModels(body: unknown): ModelInfo[] {
   return usable.sort((a, b) => version(b.name) - version(a.name) || rank(a.name) - rank(b.name)).map((m) => ({ id: m.name.replace(/^models\//, ""), label: m.displayName ?? m.name }));
 }
 
+/**
+ * Could this be a Gemini API key? Only a shape check - Google decides. Classic
+ * keys look like "AIza..."; newer ones (e.g. keys bound to a service account)
+ * look like "AQ.Ab8R...", with dots. Anything printable without spaces, of a
+ * sensible length, is let through.
+ */
+export function plausibleApiKey(key: string): boolean {
+  return /^[A-Za-z0-9._~+/=-]{20,512}$/.test(key);
+}
+
 /** Busy or rate-limited: worth retrying, or trying another model. */
 export const retryable = (status: number) => status === 429 || status === 500 || status === 503 || status === 504;
 
